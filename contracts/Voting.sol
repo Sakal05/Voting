@@ -23,10 +23,11 @@ contract Voting {
         string description;
         string whitePaper;
         uint256 timestamp;
-        uint voteCount;
+        uint totalVote;
         uint256 approveCount;
         uint256 rejectCount;
         uint256 balance;
+        address[] voters;
     }
 
     Proposal[] public proposals; //list of proposal
@@ -38,9 +39,8 @@ contract Voting {
 
     struct Voter {
         address owner;
-        bool voteStatus;
         uint256 voteRight;
-        Proposal[] proposals;
+        uint256[] proposalId;
     }
 
     //map from id to proposal
@@ -48,6 +48,9 @@ contract Voting {
 
     //map from proposal id to Voting Result
     mapping(address => Voter) public voters;
+
+    // //map proposal to vter 
+    // mapping(uint256 => Voter) public proposalToVoter;
 
     event ProposalEvent(
         uint indexed id,
@@ -70,13 +73,14 @@ contract Voting {
             description: description,
             whitePaper: whitePaper,
             timestamp: block.timestamp,
-            voteCount: 0,
+            totalVote: 0,
             approveCount: 0,
             rejectCount: 0,
-            balance: 0
+            balance: 0,
+            voters: new address[](0)
         });
 
-        proposal[newProposal.id] = newProposal;
+        proposal[proposalCounter - 1] = newProposal;
         proposals.push(newProposal);
 
         emit ProposalEvent(newProposal.id, msg.sender, title, description);
@@ -102,52 +106,36 @@ contract Voting {
             token.allowance(msg.sender, address(this)) >= _tokenAmount,
             "Token allowance not set"
         );
-        require(proposal[proposalId].id != 0, "Proposal Doesn't Exist");
+        //require(proposal[proposalId].id != 0, "Proposal Doesn't Exist");
 
         Voter storage voter = voters[msg.sender];
 
+        //Voter storage proposalToVote = proposalToVoter[proposalId];
+
+        //require(proposalToVote.owner != msg.sender, "You have already vote on this proposal");
         require(voter.voteRight >= 1, "You have no right to vote!!");
 
-        proposal[proposalId].voteCount++;
+        Proposal storage prop = proposal[proposalId];
+        //require(prop.voters != msg.sender, "You have already voted for this proposal!");
+        
+        prop.totalVote++;
+        prop.balance = _tokenAmount;
 
         //update proposal voting status
-        if( voteOption == VoteOptionType.Approve ) {
-            proposal[proposalId].approveCount++;
+        if (voteOption == VoteOptionType.Approve) {
+            prop.approveCount++;
         } else {
-            proposal[proposalId].rejectCount++;
-        } 
+            prop.rejectCount++;
+        }
 
-        voter.voteStatus = true;
+        voter.voteRight--;
 
-        
-
-
-
-
-
-
-
-
-
-        
-
-        // votes[proposalId].id = votingCounter++;
-        // votes[proposalId].voter = msg.sender;
-        // if (voteOption == VoteOptionType.Approve) {
-        //     votes[proposalId].approveCount += 1;
-        //     votes[proposalId].rejectCount = votes[proposalId].rejectCount;
-        // } else {
-        //     votes[proposalId].rejectCount += 1;
-        //     votes[proposalId].approveCount = votes[proposalId].approveCount;
-        // }
-        // votes[proposalId].balance += _tokenAmount;
-
-
+        voter.proposalId.push(proposalId);
         // Transfer the specified amount of tokens from the sender to the contract
         token.transferFrom(msg.sender, address(this), _tokenAmount);
         // Approve the voting contract (if it exists) to spend the transferred tokens
-        // if (votingContract != address(0)) {
-        //     token.approve(_tokenAmount);
-        // }
+        if (address(this) != address(0)) {
+            token.approve(msg.sender, _tokenAmount);
+        }
     }
 }
