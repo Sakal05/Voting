@@ -1,4 +1,5 @@
 const { expect } = require("chai");
+const { assert } = require("chai");
 
 describe("Voting", function () {
   let contract;
@@ -36,11 +37,11 @@ describe("Voting", function () {
         "https://example.com/test.pdf"
       );
 
-      // Get the length of the proposals array
-      // const length = await contract.proposals.length();
-
-      // // Expect the length to be 1
-      // expect(length).to.equal(1);
+      await contract.createProposal(
+        "Test Third Proposal",
+        "This is a test proposal.",
+        "https://example.com/test.pdf"
+      );
 
       // Get the proposal at index 0
       const proposal1 = await contract.proposals(0);
@@ -65,20 +66,18 @@ describe("Voting", function () {
       await contract.connect(owner).delegate(addr1.address);
 
       voterR = await contract.voters(addr1.address);
-      
     });
 
-    it("Delegate Vote to User", async function () {
+    it("Should show show voting right equal to 2", async function () {
       // Transfer some tokens to the user's account
       console.log(`Voter Right Before Vote: ${voterR.voteRight}`);
-      console.log(`Voter: ${voterR}`);
       expect(await voterR.voteRight).to.equal(2);
     });
 
     it("Should allow a user to vote on a proposal", async function () {
       // Call the vote function and pass in the necessary arguments
       await contract.connect(addr1).vote(0, 0, 100);
-      await contract.connect(addr1).vote(0, 0, 100);
+      await contract.connect(addr1).vote(1, 1, 100);
 
       const voterAfter = await contract.voters(addr1.address);
       console.log(`Voter Right After Vote: ${voterAfter.voteRight}`);
@@ -86,20 +85,47 @@ describe("Voting", function () {
       expect(await voterAfter.voteRight).to.equal(0);
 
       // Get the proposal at index 0
-      const proposal = await contract.proposal(0);
-      console.log(`Proposal Approve Count: ${proposal.approveCount}`);
-      console.log(`Proposal rejected Count: ${proposal.rejectCount}`);
+      const firstProposal = await contract.proposal(0);
+      const secondProposal = await contract.proposal(1);
 
-      console.log(`Proposal balance is: ${proposal.balance}`);
-      // Expect the proposal's approveCount to be 2
-      expect(proposal.approveCount).to.equal(2);
+      console.log(`1st Proposal Approve Count: ${firstProposal.approveCount}`);
+      console.log(`1st Proposal rejected Count: ${firstProposal.rejectCount}`);
+      console.log(`2nd Proposal Approve Count: ${secondProposal.approveCount}`);
+      console.log(`2nd Proposal rejected Count: ${secondProposal.rejectCount}`);
 
-      // Expect the proposal's rejectCount to be 0
-      expect(proposal.rejectCount).to.equal(0);
+      // console.log(`Proposal balance is: ${proposal.balance}`);
+      // Expect the proposal's approveCount to be 1 and rejectCount to be 0
+      expect(firstProposal.approveCount).to.equal(1);
+      expect(firstProposal.rejectCount).to.equal(0);
+      expect(firstProposal.balance).to.equal(100);
+
+      //expect the second proposal's approveCount to be 0 and rejectCount to be 1
+      expect(secondProposal.approveCount).to.equal(0);
+      expect(secondProposal.rejectCount).to.equal(1);
+      expect(secondProposal.balance).to.equal(0);
 
       //check contract balance
       const contractBalance = await tokenContract.balanceOf(voting.address);
       console.log(`Contract balance: ${contractBalance}`);
+    });
+
+    it("Shoudn't allow user to vote on the same proposal twice", async function () {
+      await contract.connect(addr1).vote(0, 0, 100);
+
+      await assert.isRejected(
+        contract.connect(addr1).vote(0, 0, 100),
+        "You have already voted for this proposal"
+      );
+    });
+
+    it("Shouldn't allow user to vote if insufficient token", async function () {
+      await contract.connect(addr1).vote(0, 0, 100);
+      await contract.connect(addr1).vote(1, 0, 100);
+
+      await assert.isRejected(
+        contract.connect(addr1).vote(2, 0, 100),
+        "Insufficient balance"
+      );
     });
   });
 });
