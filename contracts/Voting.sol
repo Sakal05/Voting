@@ -15,6 +15,7 @@ contract Voting {
 
     uint256 proposalCounter;
     uint256 votingCounter;
+    uint256 proposalDeadlinePeriod = 432000;
 
     struct Proposal {
         uint256 id;
@@ -27,7 +28,7 @@ contract Voting {
         uint256 approveCount;
         uint256 rejectCount;
         uint256 balance;
-        address[] voters;
+        //mapping(address => bool) voters; // track which addresses have voted on this proposal
     }
 
     Proposal[] public proposals; //list of proposal
@@ -49,14 +50,23 @@ contract Voting {
     //map from proposal id to Voting Result
     mapping(address => Voter) public voters;
 
-    // //map proposal to vter 
-    // mapping(uint256 => Voter) public proposalToVoter;
+    mapping(uint256 => mapping(address => bool)) public proposalToVoters;
+
+    //map proposal to voter
+    //mapping(uint256 => Voter) public proposalToVoter;
 
     event ProposalEvent(
         uint indexed id,
         address owner,
         string title,
         string description
+    );
+
+    event VoteEvent(
+        uint256 indexed proposalId,
+        address voter,
+        string voteOption,
+        string message
     );
 
     function createProposal(
@@ -76,8 +86,7 @@ contract Voting {
             totalVote: 0,
             approveCount: 0,
             rejectCount: 0,
-            balance: 0,
-            voters: new address[](0)
+            balance: 0
         });
 
         proposal[proposalCounter - 1] = newProposal;
@@ -116,10 +125,20 @@ contract Voting {
         require(voter.voteRight >= 1, "You have no right to vote!!");
 
         Proposal storage prop = proposal[proposalId];
-        //require(prop.voters != msg.sender, "You have already voted for this proposal!");
-        
+
+        require(
+            !voteDeadlineReach(proposalId) , "Can't Vote, proposal had reached deadline"
+        );
+
+        require(
+            !proposalToVoters[proposalId][msg.sender],
+            "You have already voted for this proposal"
+        );
+        //set voter address to the proposal
+        proposalToVoters[proposalId][msg.sender] = true;
+        voter.voteRight--;
+        //increment total vote
         prop.totalVote++;
-        prop.balance = _tokenAmount;
 
         //update proposal voting status
         if (voteOption == VoteOptionType.Approve) {
@@ -128,14 +147,61 @@ contract Voting {
             prop.rejectCount++;
         }
 
-        voter.voteRight--;
-
         voter.proposalId.push(proposalId);
-        // Transfer the specified amount of tokens from the sender to the contract
-        token.transferFrom(msg.sender, address(this), _tokenAmount);
-        // Approve the voting contract (if it exists) to spend the transferred tokens
-        if (address(this) != address(0)) {
-            token.approve(msg.sender, _tokenAmount);
+
+        //transfer token only voter vote approve on the proposal
+        if (voteOption == VoteOptionType.Approve) {
+            prop.balance += _tokenAmount;
+            // Transfer the specified amount of tokens from the sender to the contract
+            token.transferFrom(msg.sender, address(this), _tokenAmount);
+            // Approve the voting contract (if it exists) to spend the transferred tokens
+            if (address(this) != address(0)) {
+                token.approve(msg.sender, _tokenAmount);
+            }
+
+            emit VoteEvent(
+                proposalId,
+                msg.sender,
+                "Approve",
+                "Vote successful"
+            );
+        } else {
+            emit VoteEvent(proposalId, msg.sender, "Reject", "Vote successful");
         }
+    }
+
+    function voteDeadlineReach(uint256 proposalId) view public returns (bool deadlineReached){
+        uint256 deadlinePeriodLeft = proposalVotingPeriod(proposalId);
+        //if the proposal is 5 days old, the deadline reaches
+        if (deadlinePeriodLeft <= 0) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    function proposalVotingPeriod(uint256 proposalId) view public returns (uint256 timeLeft) {
+        Proposal storage prop = proposal[proposalId];
+        uint256 deadlinePeriodLeft = prop.timestamp - proposalDeadlinePeriod;
+        //if the proposal is 5 days old, the deadline reaches
+        if (deadlinePeriodLeft <= 0) {
+            return 0;
+        } else {
+            return deadlinePeriodLeft;
+        }
+    }
+
+    function getVoterProposals() external view returns (uint256[] memory) {
+        return voters[msg.sender].proposalId;
+    }
+
+    function getProposal(
+        uint256 proposalId
+    ) external view returns (Proposal memory) {
+        return proposal[proposalId];
+    }
+
+    function getAllProposals() external view returns (Proposal[] memory) {
+        return proposals;
     }
 }
