@@ -6,6 +6,9 @@
     "hardhat": "^2.13.0"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^4.8.2"
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
+    "@openzeppelin/contracts": "^4.8.2",
+    "@openzeppelin/test-helpers": "^0.5.16",
+    "sinon": "^15.0.2"
   }
 }
