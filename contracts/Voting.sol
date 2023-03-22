@@ -46,10 +46,13 @@ contract Voting {
         uint256 proposalId;
         address[] voters;
         uint256[] voteBalances;
-        VoteOptionType votingOption;
+        VoteOptionType[] votingOption;
     }
+    mapping(uint => VotingState) public votingState;
 
-    VotingState[] public votingStates; //list of voting
+    // uint[] public proposalId;
+
+    //VotingState[] public votingStates; //list of voting
 
     struct Voter {
         address owner;
@@ -94,6 +97,10 @@ contract Voting {
         string memory whitePaper
     ) public {
         require(msg.sender != address(0), "Must be a valid address");
+        require(
+            token.balanceOf(msg.sender) >= 100,
+            "Must hold 100 tokens or more to create Proposal"
+        );
 
         Proposal memory newProposal = Proposal({
             id: proposalCounter++,
@@ -119,6 +126,7 @@ contract Voting {
     //function to create and give rigth to voter
     function delegate(address to) external {
         require(to != address(0), "Address must exist");
+
         voters[to].owner = to;
         voters[to].voteRight += 1;
     }
@@ -136,18 +144,16 @@ contract Voting {
             token.allowance(msg.sender, address(this)) >= _tokenAmount,
             "Token allowance not set"
         );
-        //require(proposal[proposalId].id != 0, "Proposal Doesn't Exist");
 
         Voter storage voter = voters[msg.sender];
-
         require(voter.voteRight >= 1, "You have no right to vote!!");
 
         Proposal storage prop = proposal[proposalId];
         require(prop.owner != address(0), "Proposal does not Exist");
-        // require(
-        //     !voteDeadlineReach(proposalId),
-        //     "Can't Vote, proposal had reached deadline"
-        // );
+        require(
+            !voteDeadlineReach(proposalId),
+            "Can't Vote, proposal had reached deadline"
+        );
 
         require(
             !proposalToVoters[proposalId][msg.sender],
@@ -160,17 +166,11 @@ contract Voting {
         //increment total vote
         prop.totalVote++;
 
-        VotingState memory votingState;
-        // votingState.proposalId = proposalId;
-        // // votingState.voters.push(msg.sender);
-        // // votingState.voteBalances.push(_tokenAmount);
-        // votingState.votingOption = voteOption;
-
-        votingStates.push(votingState);
-        votingStates[proposalCounter-1].proposalId = proposalId;
-        votingStates[proposalCounter-1].voters.push(msg.sender);
-        votingStates[proposalCounter-1].voteBalances.push(_tokenAmount);
-        votingStates[proposalCounter-1].votingOption = voteOption;
+        VotingState storage voting = votingState[proposalId];
+        voting.proposalId = proposalId;
+        voting.voters.push(msg.sender);
+        voting.voteBalances.push(_tokenAmount);
+        voting.votingOption.push(voteOption);
 
         //update proposal voting status
         if (voteOption == VoteOptionType.Approve) {
@@ -237,29 +237,15 @@ contract Voting {
     }
 
     function transferRejectionCash(uint256 proposalId) internal {
-        //VotingState storage voterState = votingState[proposalId];
-        console.log(
-            "Total Voter for proposal id ",
-            proposalId,
-            "is ",
-            votingStates.length
-        );
+        VotingState storage voterState = votingState[proposalId];
 
-        // token.transferFrom(msg.sender, address(this), transferredAmount);
-        for (uint i = 0; i <= votingStates.length; i++) {
-            if (votingStates[i].proposalId == proposalId) {
-                if (votingStates[i].votingOption == VoteOptionType.Reject) {
-                    console.log(
-                        "Voter who vote for approve: ",
-                        votingStates[i].voters[i]
-                    );
-                    uint256 transferredAmount = votingStates[i].voteBalances[i];
-                    token.transferFrom(
-                        address(this),
-                        votingStates[i].voters[i],
-                        transferredAmount
-                    );
-                }
+        uint256 allVotersLength = votingState[proposalId].voters.length;
+        for (uint i = 0; i < allVotersLength; i++) {
+            if (voterState.votingOption[i] == VoteOptionType.Approve) {
+                token.transfer(
+                    voterState.voters[i],
+                    voterState.voteBalances[i]
+                );
             }
         }
     }
@@ -268,10 +254,8 @@ contract Voting {
         uint256 deadlinePeriodLeft = proposalVotingPeriod(proposalId);
         // If there is no time left, the deadline has been reached
         if (deadlinePeriodLeft == 0) {
-            console.log("Deadline", deadlinePeriodLeft);
             return true;
         } else {
-            console.log("Else Condition: ", deadlinePeriodLeft);
             return false;
         }
     }
@@ -281,21 +265,22 @@ contract Voting {
     ) public view returns (uint256) {
         Proposal storage prop = proposal[proposalId];
         uint256 proposalTimeOut = prop.timestamp + proposalDeadlinePeriod;
-        require(block.timestamp > proposalTimeOut, "Deadline Reach!");
-
-        uint256 deadlinePeriodLeft = block.timestamp - proposalTimeOut;
+        // uint256 deadlinePeriodLeft;
         // Calculate the time left until the deadline
         if (block.timestamp >= proposalTimeOut) {
-            console.log(
-                "Deadline Reach no time left. Proposal Time Since Deadline is: ",
-                deadlinePeriodLeft
-            );
+            // deadlinePeriodLeft = block.timestamp - proposalTimeOut;
+            // console.log(
+            //     "Deadline Reach no time left. Proposal Time Since Deadline is: ",
+            //     deadlinePeriodLeft
+            // );
             return 0;
         } else {
-            console.log(
-                "Haven't reached deadline yet, Time Remaining: ",
-                deadlinePeriodLeft
-            );
+            // deadlinePeriodLeft = proposalTimeOut - block.timestamp;
+
+            // console.log(
+            //     "Haven't reached deadline yet, Time Remaining: ",
+            //     deadlinePeriodLeft
+            // );
             return proposalTimeOut - block.timestamp;
         }
     }

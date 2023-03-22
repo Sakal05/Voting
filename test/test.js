@@ -9,9 +9,9 @@ const { time } = require("@nomicfoundation/hardhat-network-helpers");
 describe("Voting Contract", function () {
   let contract;
   let tokenContract;
-  let owner, addr1, addr2, addr3, addr4, addr5;
+  let owner;
   let ad1, ad2, ad3, ad4, ad5, ad6, ad7;
-  let addresses = [ad1, ad2, ad3, ad4, ad5, ad6, ad7];
+  let addresses;
   let voting;
 
   beforeEach(async function () {
@@ -20,9 +20,14 @@ describe("Voting Contract", function () {
     const token = await TokenContract.deploy();
     tokenContract = await token.deployed();
 
+    // //[owner, addr1, addr2, addr3, addr4, addr5] = await ethers.getSigners();
+    //addresses = await ethers.getSigners();
     //[owner] = await ethers.getSigners();
-    [owner, addr1, addr2, addr3, addr4, addr5] = await ethers.getSigners();
-    addresses = await ethers.getSigners();
+    [owner, ad1, ad2, ad3, ad4, ad5, ad6, ad7] = await ethers.getSigners();
+    addresses = [ad1, ad2, ad3, ad4, ad5, ad6, ad7];
+
+    //[ad1, ad2, ad3, ad4, ad5, ad6, ad7] = await ethers.getSigners();
+
     // Deploy a new instance of the Voting contract, passing in the address of the FlexyToken contract
     const VotingContract = await ethers.getContractFactory("Voting");
     voting = await VotingContract.deploy(token.address);
@@ -91,6 +96,12 @@ describe("Voting Contract", function () {
       const proposalLength = proposals.length;
       expect(proposalLength).to.equal(3);
     });
+
+    it("Should get info of the first proposal", async function () {
+      const firstProposal = await contract.getProposal(0);
+      const firstTitle = firstProposal.title;
+      expect(firstTitle).to.equal("Test Proposal");
+    });
   });
 
   describe("Vote on Proposal", function () {
@@ -102,37 +113,31 @@ describe("Voting Contract", function () {
         await tokenContract
           .connect(addresses[i])
           .approve(contract.address, 200);
-        await contract.connect(owner).delegate(addresses[i].address);
-        await contract.connect(owner).delegate(addresses[i].address);
+        await contract.delegate(addresses[i].address);
+        await contract.delegate(addresses[i].address);
       }
-
-      voterR = await contract.voters(addr1.address);
     });
 
-    // afterEach(async function () {
-    //   clock.restore();
-    // });
-
     it("Should show voting right is equal to 2", async function () {
-      // Transfer some tokens to the user's account
+      voterR = await contract.voters(addresses[0].address);
       // console.log(`Voter Right Before Vote: ${voterR.voteRight}`);
       expect(await voterR.voteRight).to.equal(2);
     });
 
     it("Should allow a voter to vote on a proposal", async function () {
       // Call the vote function and pass in the necessary arguments
-      const firstVote = await contract.connect(addr1).vote(0, 0, 100);
-      const secondVote = await contract.connect(addr1).vote(1, 1, 100);
+      const firstVote = await contract.connect(addresses[0]).vote(0, 0, 100);
+      const secondVote = await contract.connect(addresses[0]).vote(1, 1, 100);
       //await firstVote.await();
 
       await expect(firstVote)
         .to.emit(contract, "VoteEvent")
-        .withArgs(0, addr1.address, "Approve", "Vote successful");
+        .withArgs(0, addresses[0].address, "Approve", "Vote successful");
       await expect(secondVote)
         .to.emit(contract, "VoteEvent")
-        .withArgs(1, addr1.address, "Reject", "Vote successful");
+        .withArgs(1, addresses[0].address, "Reject", "Vote successful");
 
-      const voterAfter = await contract.voters(addr1.address);
+      const voterAfter = await contract.voters(addresses[0].address);
 
       // const voterProp = await contract.getVoterProposals();
       expect(await voterAfter.voteRight).to.equal(0);
@@ -166,60 +171,66 @@ describe("Voting Contract", function () {
       // console.log(`Contract balance: ${contractBalance}`);
     });
 
-    it("Shoud NOT allow user to vote on the same proposal twice", async function () {
-      await contract.connect(addr1).vote(0, 0, 100);
+    it("Should show the right number of proposals that voter has voted", async function () {
+      await contract.connect(addresses[0]).vote(0, 0, 100);
+      await contract.connect(addresses[0]).vote(1, 0, 100);
+      const votingProposals = await contract
+        .connect(addresses[0])
+        .getVoterProposals();
 
-      await expect(contract.connect(addr1).vote(0, 0, 100)).to.revertedWith(
-        "You have already voted for this proposal"
-      );
+      const votingProposalLength = votingProposals.length;
+      expect(votingProposalLength).to.equal(2);
+    });
+
+    it("Shoud NOT allow user to vote on the same proposal twice", async function () {
+      await contract.connect(addresses[0]).vote(0, 0, 100);
+
+      await expect(
+        contract.connect(addresses[0]).vote(0, 0, 100)
+      ).to.revertedWith("You have already voted for this proposal");
     });
 
     it("Should NOT allow user to vote if insufficient token", async function () {
-      await contract.connect(addr1).vote(0, 0, 100);
-      await contract.connect(addr1).vote(1, 0, 100);
+      await contract.connect(addresses[0]).vote(0, 0, 100);
+      await contract.connect(addresses[0]).vote(1, 0, 100);
 
-      await expect(contract.connect(addr1).vote(2, 0, 100)).to.revertedWith(
-        "Insufficient balance"
-      );
+      await expect(
+        contract.connect(addresses[0]).vote(2, 0, 100)
+      ).to.revertedWith("Insufficient balance");
     });
 
-    // it("Shouldn't allow user to vote when deadline is reached", async function () {
-    //   // await clock.tickAsync(400 * 1000);
-    //   await assert.isRejected(
-    //     contract.connect(addr1).vote(0, 0, 100),
-    //     "Can't Vote, proposal had reached deadline"
-    //   );
-
-    //   // // Fast-forward time by 400 seconds and then call failTest function
-    //   // await new Promise((resolve) => {
-    //   //   setTimeout(resolve, 400 * 1000);
-    //   // }).then(failTest);
-    // });
+    it("Should NOT allow to vote as proposal has reached deadline", async function () {
+      await time.increase(435000);
+      await expect(
+        contract.connect(addresses[0]).vote(0, 0, 100)
+      ).to.revertedWith("Can't Vote, proposal had reached deadline");
+    });
   });
 
   describe("Winning Proposal", function () {
     beforeEach(async function () {
       for (let i = 0; i < addresses.length; i++) {
-        await tokenContract.transfer(addresses[i].address, 200);
+        await tokenContract.transfer(addresses[i].address, 500);
         await tokenContract
           .connect(addresses[i])
-          .approve(contract.address, 200);
+          .approve(contract.address, 500);
 
-        await contract.connect(owner).delegate(addresses[i].address);
-        await contract.connect(owner).delegate(addresses[i].address);
+        await contract.delegate(addresses[i].address);
+        await contract.delegate(addresses[i].address);
       }
+
       //second proposal voting
-      await contract.connect(addr1).vote(1, 0, 100);
-      await contract.connect(addr2).vote(1, 0, 100);
-      await contract.connect(addr3).vote(1, 0, 100);
-      await contract.connect(addr4).vote(1, 0, 100);
-      await contract.connect(addr5).vote(1, 1, 100);
+      await contract.connect(addresses[0]).vote(1, 0, 100);
+      await contract.connect(addresses[1]).vote(1, 0, 100);
+      await contract.connect(addresses[2]).vote(1, 0, 100);
+      await contract.connect(addresses[3]).vote(1, 0, 100);
+      await contract.connect(addresses[4]).vote(1, 1, 100);
       //first proposal voting
-      await contract.connect(addr1).vote(0, 0, 100);
-      await contract.connect(addr2).vote(0, 0, 100);
-      await contract.connect(addr3).vote(0, 1, 100);
-      await contract.connect(addr4).vote(0, 1, 100);
-      await contract.connect(addr5).vote(0, 1, 100);
+      await contract.connect(addresses[0]).vote(0, 0, 100);
+      await contract.connect(addresses[1]).vote(0, 0, 100);
+      await contract.connect(addresses[2]).vote(0, 1, 100);
+      await contract.connect(addresses[3]).vote(0, 1, 100);
+      await contract.connect(addresses[4]).vote(0, 1, 100);
     });
 
     it("Should give second proposal a Approve Win", async function () {
@@ -239,9 +250,13 @@ describe("Voting Contract", function () {
       expect(await secondProposal.totalVote).to.equal(5);
     });
 
-    it("Should give Reject to First Proposal", async function () {
+    it("Should give Reject to First Proposal, transfer token back to voters who vote APPROVE", async function () {
       await time.increase(435000);
 
+      console.log(
+        "Contract Balancec: ",
+        await tokenContract.balanceOf(contract.address)
+      );
       const declareWinProposal = await contract
         .connect(owner)
         .declareWinningProposal(0);
@@ -260,7 +275,7 @@ describe("Voting Contract", function () {
       await time.increase(3600);
       await expect(
         contract.connect(owner).declareWinningProposal(1)
-      ).to.revertedWith("Deadline Reach!");
+      ).to.revertedWith("Proposal hasn't reached the deadline");
     });
   });
 });
