@@ -50,17 +50,11 @@ contract Voting {
     }
     mapping(uint => VotingState) public votingState;
 
-    // uint[] public proposalId;
-
-    //VotingState[] public votingStates; //list of voting
-
     struct Voter {
         address owner;
         uint256 voteRight;
         uint256[] proposal;
     }
-
-    //mapping(uint256 => VotingState) public votingState;
 
     //map from id to proposal
     mapping(uint => Proposal) public proposal;
