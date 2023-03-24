@@ -16,8 +16,8 @@ contract Voting {
 
     uint256 proposalCounter;
     uint256 votingCounter;
-    // uint256 proposalDeadlinePeriod = 432000; //5 days period
-    uint256 proposalDeadlinePeriod = 432000; //5 days period
+    uint256 public proposalDeadlinePeriod = 432000; //5 days period
+    uint256 public distributePeriod = 30 days;
 
     struct Proposal {
         uint256 id;
@@ -32,7 +32,6 @@ contract Voting {
         uint256 approveCount;
         uint256 rejectCount;
         uint256 balance;
-        //mapping(address => bool) voters; // track which addresses have voted on this proposal
     }
 
     Proposal[] public proposals; //list of proposal
@@ -48,7 +47,6 @@ contract Voting {
         uint256[] voteBalances;
         VoteOptionType[] votingOption;
     }
-    mapping(uint => VotingState) public votingState;
 
     struct Voter {
         address owner;
@@ -56,13 +54,16 @@ contract Voting {
         uint256[] proposal;
     }
 
-    //map from id to proposal
+    //map from id to proposal struct
     mapping(uint => Proposal) public proposal;
 
-    //map from proposal id to Voting Result
+    //map from proposalId to VotingState struct
+    mapping(uint => VotingState) public votingState;
+
+    //map from voter address to voter
     mapping(address => Voter) public voters;
 
-    //map from proposal to voters
+    //map from proposal to voters state
     mapping(uint256 => mapping(address => bool)) public proposalToVoters;
 
     event ProposalEvent(
@@ -83,6 +84,12 @@ contract Voting {
         uint256 indexed proposalId,
         bool winningStatus,
         string message
+    );
+
+    event TransferTokenForProposalRejection(
+        uint256 indexed proposalId,
+        address[] voters,
+        uint256 totalTokenTransferred
     );
 
     function createProposal(
@@ -218,6 +225,7 @@ contract Voting {
         console.log("Winning Rate: ", winningRate);
         if (winningRate >= 50) {
             prop.winningStatus = true;
+            token.transfer(prop.owner, prop.balance);
         } else {
             prop.winningStatus = false;
             //transfer all money back to voters
@@ -230,18 +238,29 @@ contract Voting {
         );
     }
 
+    // function distributeIncentive() external {
+
+    // }
+
     function transferRejectionCash(uint256 proposalId) internal {
         VotingState storage voterState = votingState[proposalId];
 
         uint256 allVotersLength = votingState[proposalId].voters.length;
+        uint256 totalTokenTransferred;
         for (uint i = 0; i < allVotersLength; i++) {
             if (voterState.votingOption[i] == VoteOptionType.Approve) {
+                totalTokenTransferred += voterState.voteBalances[i];
                 token.transfer(
                     voterState.voters[i],
                     voterState.voteBalances[i]
                 );
             }
         }
+        emit TransferTokenForProposalRejection(
+            proposalId,
+            voterState.voters,
+            totalTokenTransferred
+        );
     }
 
     function voteDeadlineReach(uint256 proposalId) public view returns (bool) {
@@ -277,6 +296,14 @@ contract Voting {
             // );
             return proposalTimeOut - block.timestamp;
         }
+    }
+
+    function distrubutionDeadlinePeriod(
+        uint256 proposalId
+    ) public view returns (uint256) {
+        Proposal storage prop = proposal[proposalId];
+        require(prop.winningStatus == true, "Proposal has been rejected");
+        uint256 claimIncentiveDeadline = prop.timestamp + 5 days + 30 days; //5 days after the proposal is approved, 30 days after claimming period is reached
     }
 
     function getVoterProposals() public view returns (uint256[] memory) {

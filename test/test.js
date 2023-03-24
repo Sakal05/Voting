@@ -20,9 +20,6 @@ describe("Voting Contract", function () {
     const token = await TokenContract.deploy();
     tokenContract = await token.deployed();
 
-    // //[owner, addr1, addr2, addr3, addr4, addr5] = await ethers.getSigners();
-    //addresses = await ethers.getSigners();
-    //[owner] = await ethers.getSigners();
     [owner, ad1, ad2, ad3, ad4, ad5, ad6, ad7] = await ethers.getSigners();
     addresses = [ad1, ad2, ad3, ad4, ad5, ad6, ad7];
 
@@ -248,6 +245,13 @@ describe("Voting Contract", function () {
         .withArgs(1, true, "Proposal settled successfully");
 
       expect(await secondProposal.totalVote).to.equal(5);
+      const initialOwnerBalance = await tokenContract.balanceOf(owner.address);
+
+      console.log("Initial Balancec: ", initialOwnerBalance);
+      const total = initialOwnerBalance + parseFloat(secondProposal.balance);
+
+      console.log("Balance after winning vote: ", await tokenContract.balanceOf(owner.address));
+
     });
 
     it("Should give Reject to First Proposal, transfer token back to voters who vote APPROVE", async function () {
@@ -263,10 +267,12 @@ describe("Voting Contract", function () {
       const firstProposal = await contract.proposal(0);
       console.log(`Winning Status: ${firstProposal.winningStatus}`);
       expect(await firstProposal.winningStatus).to.equal(false);
-
+      // expect(await tokenContract.balanceOf(owner.address)).to.equal(total);
       await expect(declareWinProposal)
         .to.emit(contract, "WinningProposalEvent")
-        .withArgs(0, false, "Proposal settled successfully");
+        .withArgs(0, false, "Proposal settled successfully")
+        .to.emit(contract, "TransferTokenForProposalRejection")
+        .withArgs(0, [addresses[0].address, addresses[1].address], 200);
 
       expect(await firstProposal.totalVote).to.equal(5);
     });
