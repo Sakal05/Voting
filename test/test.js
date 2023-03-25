@@ -343,6 +343,8 @@ describe("Voting Contract", function () {
       const firstAddressVoteBalance = voteBalance[1];
       const incentive = (firstProposalIncentive*firstAddressVoteBalance)/100;
 
+
+
       await expect(distributeRightAmount)
         .to.emit(contract, "claimIncentiveEvent")
         .withArgs(addresses[1].address, incentive);

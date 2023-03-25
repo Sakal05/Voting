@@ -413,7 +413,7 @@ contract Voting {
     ) public view returns (uint256) {
         Proposal storage prop = proposal[proposalId];
         require(prop.winningStatus == true, "Proposal has been rejected");
-        uint256 claimDeadline = prop.timestamp + distributePeriod;
+        uint256 claimDeadline = prop.timestamp + distributePeriod + 5 days; //5 days after proposal is delared winning status
         if (block.timestamp >= claimDeadline) {
             return 0;
         } else {
