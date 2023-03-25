@@ -187,7 +187,7 @@ describe("Voting Contract", function () {
       await contract.connect(addresses[0]).vote(1, 0, 100);
       const votingProposals = await contract
         .connect(addresses[0])
-        .getVoterProposals();
+        .getVotedProposals();
 
       const votingProposalLength = votingProposals.length;
       expect(votingProposalLength).to.equal(2);
@@ -251,7 +251,6 @@ describe("Voting Contract", function () {
         .declareWinningProposal(1);
       const secondProposal = await contract.proposal(1);
 
-      console.log(`Winning Status: ${secondProposal.winningStatus}`);
       expect(await secondProposal.winningStatus).to.equal(true);
 
       await expect(declareWinProposal)
@@ -261,27 +260,17 @@ describe("Voting Contract", function () {
       expect(await secondProposal.totalVote).to.equal(5);
       const initialOwnerBalance = await tokenContract.balanceOf(owner.address);
 
-      console.log("Initial Balancec: ", initialOwnerBalance);
       const total = initialOwnerBalance + parseFloat(secondProposal.balance);
-
-      console.log(
-        "Balance after winning vote: ",
-        await tokenContract.balanceOf(owner.address)
-      );
     });
 
     it("Should give Reject to First Proposal, transfer token back to voters who vote APPROVE", async function () {
       await time.increase(435000);
 
-      console.log(
-        "Contract Balancec: ",
-        await tokenContract.balanceOf(contract.address)
-      );
       const declareWinProposal = await contract
         .connect(owner)
         .declareWinningProposal(0);
       const firstProposal = await contract.proposal(0);
-      console.log(`Winning Status: ${firstProposal.winningStatus}`);
+
       expect(await firstProposal.winningStatus).to.equal(false);
       // expect(await tokenContract.balanceOf(owner.address)).to.equal(total);
       await expect(declareWinProposal)
@@ -301,7 +290,7 @@ describe("Voting Contract", function () {
     });
   });
 
-  describe.only("Incentive Distribution", function () {
+  describe("Incentive Distribution", function () {
     beforeEach(async function () {
       for (let i = 0; i < addresses.length; i++) {
         await tokenContract.transfer(addresses[i].address, 500);
@@ -326,28 +315,65 @@ describe("Voting Contract", function () {
       await contract.connect(addresses[4]).vote(0, 1, 100);
     });
 
-    it("Should distribute incentive to voter after 30 days", async function () {
+    it("Should claim first incentive after 30 days", async function () {
       await time.increase(86400 * 35);
       await contract.declareWinningProposal(1);
       //const votingState = await contract.votingState(0);
       //console.log("Porposal: ", await contract.proposal(0));
-      const distributeRightAmount = await contract
+      const claimFirstIncentive = await contract
         .connect(addresses[1])
         .claimVotingIncentive(1);
 
       const secondProposal = await contract.proposal(1);
 
       // expect(votingClaimCount).to.equal(1);
-      const firstProposalIncentive = secondProposal.proposalInfo.incentivePercentagePerMonth;
+      const firstProposalIncentive =
+        secondProposal.proposalInfo.incentivePercentagePerMonth;
       const voteBalance = await contract.getVoteBalanceByProposalId(1);
       const firstAddressVoteBalance = voteBalance[1];
-      const incentive = (firstProposalIncentive*firstAddressVoteBalance)/100;
+      const incentive =
+        (firstProposalIncentive * firstAddressVoteBalance) / 100;
 
+      const voterBalanceAfter = await tokenContract.balanceOf(
+        addresses[1].address
+      );
+      expect(voterBalanceAfter).to.equal(200 + incentive);
 
-
-      await expect(distributeRightAmount)
+      await expect(claimFirstIncentive)
         .to.emit(contract, "claimIncentiveEvent")
         .withArgs(addresses[1].address, incentive);
+    });
+
+    it("Should claim second incentive after 2 months", async function () {
+      await time.increase(86400 * 65);
+      await contract.declareWinningProposal(1);
+      
+      await contract
+        .connect(addresses[1])
+        .claimVotingIncentive(1);
+
+      await contract
+        .connect(addresses[1])
+        .claimVotingIncentive(1);
+
+      const totalClaim = await contract.connect(addresses[1]).getClaimCounterByProposalId(1);
+
+      expect(totalClaim[1] ).to.equal(2)
+
+    });
+
+    it("Should NOT ALLOW to claim second incentive as Deadline Has Not Reached", async function () {
+      await time.increase(86400 * 60);
+      await contract.declareWinningProposal(1);
+      
+      await contract
+        .connect(addresses[1])
+        .claimVotingIncentive(1);
+
+      await expect(contract
+        .connect(addresses[1])
+        .claimVotingIncentive(1)).to.revertedWith("Claim Period hasn't reached deadline yet!");
+
     });
   });
 
@@ -388,11 +414,10 @@ describe("Voting Contract", function () {
       const voteString = getVotedProposals.toString();
       expect(voteString).to.equal("1,0");
 
-      const votingStateVoters = await contract
-        .getVotersByProposalId(1);
+      const votingStateVoters = await contract.getVotersByProposalId(1);
       const firstVoter = votingStateVoters[0];
       expect(firstVoter).to.equal(addresses[0].address);
-    
+
       const votingClaimCount = await contract.getClaimCounterByProposalId(1);
       const votingClaimCountToString = await votingClaimCount.toString();
       expect(votingClaimCountToString).to.equal("0,1,0,0,0");

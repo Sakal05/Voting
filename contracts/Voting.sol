@@ -58,6 +58,7 @@ contract Voting {
         VoteOptionType[] votingOption;
         uint256[] claimCounter;
         bool[] claimStatus;
+        uint256[] claimTimeStamp;
     }
 
     struct Voter {
@@ -223,6 +224,7 @@ contract Voting {
         voting.votingOption.push(voteOption);
         voting.claimCounter.push(0);
         voting.claimStatus.push(false);
+        voting.claimTimeStamp.push(block.timestamp);
         // console.log("Voting State: ", voting.voters.length);
         // console.log(
         //     "Latest voting state:",
@@ -277,7 +279,6 @@ contract Voting {
         uint256 totalVote = prop.totalVote;
         //uint256 rejectRate = prop.totalVote%prop.rejectCount;
         uint256 winningRate = (approveCount * 100) / totalVote;
-        console.log("Winning Rate: ", winningRate);
         if (winningRate >= 50) {
             prop.winningStatus = true;
             token.transfer(prop.proposalInfo.owner, prop.balance);
@@ -295,10 +296,7 @@ contract Voting {
 
     function claimVotingIncentive(uint256 proposalId) public {
         require(msg.sender != address(0), "Address must be valid");
-        require(
-            distributionDeadlineReach(proposalId),
-            "Claim Period hasn't reached deadline yet!"
-        );
+
         bool voterFound;
         //require the proposal must be approved WIN
         Proposal storage prop = proposal[proposalId];
@@ -316,6 +314,11 @@ contract Voting {
             }
         }
         address receiver = voterState.voters[voterIndex];
+        uint256 claimCount = voterState.claimCounter[voterIndex];
+        require(
+            distributionDeadlineReach(proposalId, claimCount),
+            "Claim Period hasn't reached deadline yet!"
+        );
         //require voter to vote approve
         require(
             voterState.votingOption[voterIndex] == VoteOptionType.Approve,
@@ -409,22 +412,42 @@ contract Voting {
     }
 
     function distrubutionDeadlinePeriod(
-        uint256 proposalId
+        uint256 proposalId,
+        uint256 claimCount
     ) public view returns (uint256) {
         Proposal storage prop = proposal[proposalId];
         require(prop.winningStatus == true, "Proposal has been rejected");
-        uint256 claimDeadline = prop.timestamp + distributePeriod + 5 days; //5 days after proposal is delared winning status
-        if (block.timestamp >= claimDeadline) {
-            return 0;
+        uint256 claimDeadline;
+        
+        if (claimCount == 0) {
+            claimDeadline = prop.timestamp + distributePeriod;
+            if (block.timestamp >= claimDeadline + 5 days) {
+                //5 days after proposal is delared winning status
+                return 0;
+            } else {
+                return claimDeadline + (5 days) - block.timestamp;
+            }
         } else {
-            return claimDeadline - block.timestamp;
+            uint cc = claimCount += 1;
+            claimDeadline = prop.timestamp + (distributePeriod * cc);
+
+            if (block.timestamp >= claimDeadline + 5 days) {
+                
+                return 0;
+            } else {
+                return claimDeadline + 5 days - block.timestamp;
+            }
         }
     }
 
     function distributionDeadlineReach(
-        uint256 proposalId
+        uint256 proposalId,
+        uint256 claimCount
     ) public view returns (bool) {
-        uint256 claimPeriodLeft = distrubutionDeadlinePeriod(proposalId);
+        uint256 claimPeriodLeft = distrubutionDeadlinePeriod(
+            proposalId,
+            claimCount
+        );
         if (claimPeriodLeft == 0) {
             return true;
         } else {
