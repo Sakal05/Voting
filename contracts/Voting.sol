@@ -418,8 +418,8 @@ contract Voting {
         Proposal storage prop = proposal[proposalId];
         require(prop.winningStatus == true, "Proposal has been rejected");
         uint256 claimDeadline;
-        
-        if (claimCount == 0) {
+    
+        if (claimCount == 0) { //for first time claiming the incentive
             claimDeadline = prop.timestamp + distributePeriod;
             if (block.timestamp >= claimDeadline + 5 days) {
                 //5 days after proposal is delared winning status
@@ -427,7 +427,7 @@ contract Voting {
             } else {
                 return claimDeadline + (5 days) - block.timestamp;
             }
-        } else {
+        } else { 
             uint cc = claimCount += 1;
             claimDeadline = prop.timestamp + (distributePeriod * cc);
 
