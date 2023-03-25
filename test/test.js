@@ -35,7 +35,8 @@ describe("Voting Contract", function () {
       .createProposal(
         "Test Proposal",
         "This is a test proposal.",
-        "https://example.com/test.pdf"
+        "https://example.com/test.pdf",
+        10
       );
 
     await contract
@@ -43,7 +44,8 @@ describe("Voting Contract", function () {
       .createProposal(
         "Test Second Proposal",
         "This is a test proposal.",
-        "https://example.com/test.pdf"
+        "https://example.com/test.pdf",
+        5
       );
 
     await contract
@@ -51,7 +53,8 @@ describe("Voting Contract", function () {
       .createProposal(
         "Test Third Proposal",
         "This is a test proposal.",
-        "https://example.com/test.pdf"
+        "https://example.com/test.pdf",
+        5
       );
   });
 
@@ -64,10 +67,16 @@ describe("Voting Contract", function () {
       const proposal3 = await contract.proposals(2);
 
       // Expect the proposal's title to match the title passed in
-      expect(proposal1.title).to.equal("Test Proposal");
-      console.log("This is proposal title 1: ", proposal1.title);
-      expect(proposal2.title).to.equal("Test Second Proposal");
-      expect(proposal3.title).to.equal("Test Third Proposal");
+      expect(await proposal1.proposalInfo.title).to.equal("Test Proposal");
+      expect(await proposal1.proposalInfo.incentivePercentagePerMonth).to.equal(
+        10
+      ); //)
+      expect(await proposal2.proposalInfo.title).to.equal(
+        "Test Second Proposal"
+      );
+      expect(await proposal3.proposalInfo.title).to.equal(
+        "Test Third Proposal"
+      );
     });
 
     it("Should emit the right event", async function () {
@@ -76,7 +85,8 @@ describe("Voting Contract", function () {
         .createProposal(
           "Test Event Proposal",
           "This is a test Event proposal.",
-          "https://example.com/test.pdf"
+          "https://example.com/test.pdf",
+          10
         );
       await expect(createProposalEvent)
         .to.emit(contract, "ProposalEvent")
@@ -84,7 +94,8 @@ describe("Voting Contract", function () {
           3,
           owner.address,
           "Test Event Proposal",
-          "This is a test Event proposal."
+          "This is a test Event proposal.",
+          10
         );
     });
 
@@ -96,7 +107,10 @@ describe("Voting Contract", function () {
 
     it("Should get info of the first proposal", async function () {
       const firstProposal = await contract.getProposal(0);
-      const firstTitle = firstProposal.title;
+      const firstTitle = await firstProposal.proposalInfo.title;
+      const firstProposalIncentive = await firstProposal.proposalInfo
+        .incentivePercentagePerMonth;
+      expect(firstProposalIncentive).to.equal(10);
       expect(firstTitle).to.equal("Test Proposal");
     });
   });
@@ -250,8 +264,10 @@ describe("Voting Contract", function () {
       console.log("Initial Balancec: ", initialOwnerBalance);
       const total = initialOwnerBalance + parseFloat(secondProposal.balance);
 
-      console.log("Balance after winning vote: ", await tokenContract.balanceOf(owner.address));
-
+      console.log(
+        "Balance after winning vote: ",
+        await tokenContract.balanceOf(owner.address)
+      );
     });
 
     it("Should give Reject to First Proposal, transfer token back to voters who vote APPROVE", async function () {
@@ -282,6 +298,102 @@ describe("Voting Contract", function () {
       await expect(
         contract.connect(owner).declareWinningProposal(1)
       ).to.revertedWith("Proposal hasn't reached the deadline");
+    });
+  });
+
+  describe.only("Incentive Distribution", function () {
+    beforeEach(async function () {
+      for (let i = 0; i < addresses.length; i++) {
+        await tokenContract.transfer(addresses[i].address, 500);
+        await tokenContract
+          .connect(addresses[i])
+          .approve(contract.address, 500);
+
+        await contract.delegate(addresses[i].address);
+        await contract.delegate(addresses[i].address);
+      }
+      //second proposal voting
+      await contract.connect(addresses[0]).vote(1, 0, 100);
+      await contract.connect(addresses[1]).vote(1, 0, 200);
+      await contract.connect(addresses[2]).vote(1, 0, 100);
+      await contract.connect(addresses[3]).vote(1, 0, 100);
+      await contract.connect(addresses[4]).vote(1, 1, 100);
+      //first proposal voting
+      await contract.connect(addresses[0]).vote(0, 0, 100);
+      await contract.connect(addresses[1]).vote(0, 0, 100);
+      await contract.connect(addresses[2]).vote(0, 1, 100);
+      await contract.connect(addresses[3]).vote(0, 1, 100);
+      await contract.connect(addresses[4]).vote(0, 1, 100);
+    });
+
+    it("Should distribute incentive to voter after 30 days", async function () {
+      await time.increase(86400 * 35);
+      await contract.declareWinningProposal(1);
+      //const votingState = await contract.votingState(0);
+      //console.log("Porposal: ", await contract.proposal(0));
+      const distributeRightAmount = await contract
+        .connect(addresses[1])
+        .claimVotingIncentive(1);
+
+      const secondProposal = await contract.proposal(1);
+
+      // expect(votingClaimCount).to.equal(1);
+      const firstProposalIncentive = secondProposal.proposalInfo.incentivePercentagePerMonth;
+      const voteBalance = await contract.getVoteBalanceByProposalId(1);
+      const firstAddressVoteBalance = voteBalance[1];
+      const incentive = (firstProposalIncentive*firstAddressVoteBalance)/100;
+
+      await expect(distributeRightAmount)
+        .to.emit(contract, "claimIncentiveEvent")
+        .withArgs(addresses[1].address, incentive);
+    });
+  });
+
+  describe("Test Voting State", function () {
+    beforeEach(async function () {
+      for (let i = 0; i < addresses.length; i++) {
+        await tokenContract.transfer(addresses[i].address, 500);
+        await tokenContract
+          .connect(addresses[i])
+          .approve(contract.address, 500);
+
+        await contract.delegate(addresses[i].address);
+        await contract.delegate(addresses[i].address);
+      }
+      //second proposal voting
+      await contract.connect(addresses[0]).vote(1, 0, 100);
+      await contract.connect(addresses[1]).vote(1, 0, 100);
+      await contract.connect(addresses[2]).vote(1, 0, 100);
+      await contract.connect(addresses[3]).vote(1, 0, 100);
+      await contract.connect(addresses[4]).vote(1, 1, 100);
+      //first proposal voting
+      await contract.connect(addresses[0]).vote(0, 0, 100);
+      await contract.connect(addresses[1]).vote(0, 0, 100);
+      await contract.connect(addresses[2]).vote(0, 1, 100);
+      await contract.connect(addresses[3]).vote(0, 1, 100);
+      await contract.connect(addresses[4]).vote(0, 1, 100);
+    });
+
+    it("should show right voting state of second proposal", async () => {
+      //const secondProposal = await contract.proposal(1);
+      await time.increase(86400 * 35);
+      await contract.declareWinningProposal(1);
+      await contract.connect(addresses[1]).claimVotingIncentive(1);
+      const getVotedProposals = await contract
+        .connect(addresses[0])
+        .getVotedProposals();
+
+      const voteString = getVotedProposals.toString();
+      expect(voteString).to.equal("1,0");
+
+      const votingStateVoters = await contract
+        .getVotersByProposalId(1);
+      const firstVoter = votingStateVoters[0];
+      expect(firstVoter).to.equal(addresses[0].address);
+    
+      const votingClaimCount = await contract.getClaimCounterByProposalId(1);
+      const votingClaimCountToString = await votingClaimCount.toString();
+      expect(votingClaimCountToString).to.equal("0,1,0,0,0");
     });
   });
 });
