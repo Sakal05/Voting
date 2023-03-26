@@ -422,5 +422,15 @@ describe("Voting Contract", function () {
       const votingClaimCountToString = await votingClaimCount.toString();
       expect(votingClaimCountToString).to.equal("0,1,0,0,0");
     });
+
+    it("All getter functions", function(){
+
+    });
+
+    it("show right event emit", function(){
+
+    });
   });
+
+
 });

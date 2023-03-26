@@ -124,21 +124,6 @@ contract Voting {
             "Incentive must be greater than zero"
         );
 
-        // Proposal memory newProposal = Proposal({
-        //     id: proposalCounter++,
-        //     owner: msg.sender,
-        //     title: title,
-        //     description: description,
-        //     whitePaper: whitePaper,
-        //     incentivePercentagePerMonth: incentivePercentagePerMonth,
-        //     timestamp: block.timestamp,
-        //     proposalPendingStatus: true,
-        //     winningStatus: false,
-        //     totalVote: 0,
-        //     approveCount: 0,
-        //     rejectCount: 0,
-        //     balance: 0
-        // });
         ProposalInfo memory newProposalInfo = ProposalInfo({
             owner: msg.sender,
             title: title,
