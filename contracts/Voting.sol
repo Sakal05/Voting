@@ -16,16 +16,11 @@ contract Voting {
 
     uint256 proposalCounter;
     uint256 votingCounter;
-    uint256 public proposalDeadlinePeriod = 432000; //5 days period
+    uint256 public proposalDeadlinePeriod = 5 days; //5 days period
     uint256 public distributePeriod = 30 days;
 
     struct Proposal {
         uint256 id;
-        // address owner;
-        // string title;
-        // string description;
-        // string whitePaper;
-        // uint256 incentivePercentagePerMonth;
         ProposalInfo proposalInfo;
         uint256 timestamp;
         bool proposalPendingStatus;
@@ -376,22 +371,10 @@ contract Voting {
     ) public view returns (uint256) {
         Proposal storage prop = proposal[proposalId];
         uint256 proposalTimeOut = prop.timestamp + proposalDeadlinePeriod;
-        // uint256 deadlinePeriodLeft;
         // Calculate the time left until the deadline
         if (block.timestamp >= proposalTimeOut) {
-            // deadlinePeriodLeft = block.timestamp - proposalTimeOut;
-            // console.log(
-            //     "Deadline Reach no time left. Proposal Time Since Deadline is: ",
-            //     deadlinePeriodLeft
-            // );
             return 0;
         } else {
-            // deadlinePeriodLeft = proposalTimeOut - block.timestamp;
-
-            // console.log(
-            //     "Haven't reached deadline yet, Time Remaining: ",
-            //     deadlinePeriodLeft
-            // );
             return proposalTimeOut - block.timestamp;
         }
     }
@@ -403,8 +386,9 @@ contract Voting {
         Proposal storage prop = proposal[proposalId];
         require(prop.winningStatus == true, "Proposal has been rejected");
         uint256 claimDeadline;
-    
-        if (claimCount == 0) { //for first time claiming the incentive
+
+        if (claimCount == 0) {
+            //for first time claiming the incentive
             claimDeadline = prop.timestamp + distributePeriod;
             if (block.timestamp >= claimDeadline + 5 days) {
                 //5 days after proposal is delared winning status
@@ -412,12 +396,11 @@ contract Voting {
             } else {
                 return claimDeadline + (5 days) - block.timestamp;
             }
-        } else { 
+        } else {
             uint cc = claimCount += 1;
             claimDeadline = prop.timestamp + (distributePeriod * cc);
 
             if (block.timestamp >= claimDeadline + 5 days) {
-                
                 return 0;
             } else {
                 return claimDeadline + 5 days - block.timestamp;
