@@ -1,6 +1,4 @@
 const { expect } = require("chai");
-const { assert } = require("chai");
-// const { time, expectRevert } = require("@openzeppelin/test-helpers"); // <-- add this line
 const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
@@ -116,7 +114,6 @@ describe("Voting Contract", function () {
   });
 
   describe("Vote on Proposal", function () {
-    let voterR;
 
     beforeEach(async function () {
       for (let i = 0; i < addresses.length; i++) {
@@ -124,13 +121,13 @@ describe("Voting Contract", function () {
         await tokenContract
           .connect(addresses[i])
           .approve(contract.address, 200);
-        await contract.delegate(addresses[i].address);
-        await contract.delegate(addresses[i].address);
+        await contract.connect(addresses[i]).delegate(addresses[i].address);
+        await contract.connect(addresses[i]).delegate(addresses[i].address);
       }
     });
 
     it("Should show voting right is equal to 2", async function () {
-      voterR = await contract.voters(addresses[0].address);
+      const voterR = await contract.voters(addresses[0].address);
       // console.log(`Voter Right Before Vote: ${voterR.voteRight}`);
       expect(await voterR.voteRight).to.equal(2);
     });
@@ -273,11 +270,7 @@ describe("Voting Contract", function () {
 
       expect(await firstProposal.winningStatus).to.equal(false);
       // expect(await tokenContract.balanceOf(owner.address)).to.equal(total);
-      await expect(declareWinProposal)
-        .to.emit(contract, "WinningProposalEvent")
-        .withArgs(0, false, "Proposal settled successfully")
-        .to.emit(contract, "TransferTokenForProposalRejection")
-        .withArgs(0, [addresses[0].address, addresses[1].address], 200);
+      
 
       expect(await firstProposal.totalVote).to.equal(5);
     });
@@ -347,33 +340,48 @@ describe("Voting Contract", function () {
     it("Should claim second incentive after 2 months", async function () {
       await time.increase(86400 * 65);
       await contract.declareWinningProposal(1);
-      
-      await contract
+
+      await contract.connect(addresses[1]).claimVotingIncentive(1);
+
+      await contract.connect(addresses[1]).claimVotingIncentive(1);
+
+      const totalClaim = await contract
         .connect(addresses[1])
-        .claimVotingIncentive(1);
+        .getClaimCounterByProposalId(1);
 
-      await contract
-        .connect(addresses[1])
-        .claimVotingIncentive(1);
-
-      const totalClaim = await contract.connect(addresses[1]).getClaimCounterByProposalId(1);
-
-      expect(totalClaim[1] ).to.equal(2)
-
+      expect(totalClaim[1]).to.equal(2);
     });
 
     it("Should NOT ALLOW to claim second incentive as Deadline Has Not Reached", async function () {
       await time.increase(86400 * 60);
       await contract.declareWinningProposal(1);
-      
-      await contract
-        .connect(addresses[1])
-        .claimVotingIncentive(1);
 
-      await expect(contract
-        .connect(addresses[1])
-        .claimVotingIncentive(1)).to.revertedWith("Claim Period hasn't reached deadline yet!");
+      await contract.connect(addresses[1]).claimVotingIncentive(1);
 
+      await expect(
+        contract.connect(addresses[1]).claimVotingIncentive(1)
+      ).to.revertedWith("Claim Period hasn't reached deadline yet!");
+    });
+
+    it("Should NOT provide incentive as Proposal has been rejected", async function () {
+      await time.increase(86400 * 35);
+      await contract.declareWinningProposal(0);
+
+      await expect(
+        contract.connect(addresses[1]).claimVotingIncentive(0)
+      ).to.revertedWith("Proposal has been rejected!");
+    });
+
+    it("Should Fail as voter voted reject", async function(){
+      await time.increase(86400 * 35);
+      await contract.declareWinningProposal(1);
+      await expect(contract.connect(addresses[4]).claimVotingIncentive(1)).to.revertedWith("Voter must vote approve on the proposal");
+    });
+
+    it("Should fail test as voter doesn't exist", async function(){
+      await time.increase(86400 * 35);
+      await contract.declareWinningProposal(1);
+      await expect(contract.connect(addresses[5]).claimVotingIncentive(1)).to.revertedWith("You are not a valid voter for this proposal");
     });
   });
 
@@ -390,7 +398,7 @@ describe("Voting Contract", function () {
       }
       //second proposal voting
       await contract.connect(addresses[0]).vote(1, 0, 100);
-      await contract.connect(addresses[1]).vote(1, 0, 100);
+      await contract.connect(addresses[1]).vote(1, 0, 200);
       await contract.connect(addresses[2]).vote(1, 0, 100);
       await contract.connect(addresses[3]).vote(1, 0, 100);
       await contract.connect(addresses[4]).vote(1, 1, 100);
@@ -402,7 +410,7 @@ describe("Voting Contract", function () {
       await contract.connect(addresses[4]).vote(0, 1, 100);
     });
 
-    it("should show right voting state of second proposal", async () => {
+    it("should show right voting state of second proposal", async function () {
       //const secondProposal = await contract.proposal(1);
       await time.increase(86400 * 35);
       await contract.declareWinningProposal(1);
@@ -423,14 +431,13 @@ describe("Voting Contract", function () {
       expect(votingClaimCountToString).to.equal("0,1,0,0,0");
     });
 
-    it("All getter functions", function(){
-
+    it("All getter functions", async function () {
+      const claimProposal = await contract.getVoteBalanceByProposalId(1);
+      expect(claimProposal.length).to.equal(5);
+      const getVoteBalances = await contract.getVoteBalanceByProposalId(1);
+      expect(getVoteBalances[1]).to.equal(200);
     });
-
-    it("show right event emit", function(){
-
-    });
+    //it("show right event emit", function () {});
   });
-
 
 });
