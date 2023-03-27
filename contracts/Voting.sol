@@ -152,9 +152,19 @@ contract Voting {
     }
 
     //function to create and give rigth to voter
-    function delegate(address to) external {
+    function delegate(
+        address to
+    ) external {
+        require(msg.sender != address(0), "Address must exist");
         require(to != address(0), "Address must exist");
+        Voter storage voter = voters[msg.sender];
+        uint256 delegatorAddress = token.balanceOf(msg.sender);
+        if (voter.voteRight == 0){
+            require(delegatorAddress >= 100, "Address must have at least 100 tokens");
+        } else {
+            require(delegatorAddress >= (100*voter.voteRight), "Address must have at least 100 tokens");
 
+        }
         voters[to].voter = to;
         voters[to].voteRight += 1;
     }
@@ -205,11 +215,7 @@ contract Voting {
         voting.claimCounter.push(0);
         voting.claimStatus.push(false);
         voting.claimTimeStamp.push(block.timestamp);
-        // console.log("Voting State: ", voting.voters.length);
-        // console.log(
-        //     "Latest voting state:",
-        //     voting.voters[voting.voters.length - 1]
-        // );
+    
         //update proposal voting status
         if (voteOption == VoteOptionType.Approve) {
             prop.approveCount++;
@@ -240,7 +246,11 @@ contract Voting {
         }
     }
 
-    function declareWinningProposal(uint256 proposalId) public {
+    function declareWinningProposal(
+        uint256 proposalId
+    ) public {
+        //ensure that proposal owner put some collectural into this contract
+        
         require(
             voteDeadlineReach(proposalId),
             "Proposal hasn't reached the deadline"
@@ -261,7 +271,6 @@ contract Voting {
         uint256 winningRate = (approveCount * 100) / totalVote;
         if (winningRate >= 50) {
             prop.winningStatus = true;
-            token.transfer(prop.proposalInfo.owner, prop.balance);
         } else {
             prop.winningStatus = false;
             //transfer all money back to voters
@@ -274,7 +283,9 @@ contract Voting {
         );
     }
 
-    function claimVotingIncentive(uint256 proposalId) public {
+    function claimVotingIncentive(
+        uint256 proposalId
+    ) public {
         require(msg.sender != address(0), "Address must be valid");
 
         bool voterFound;
@@ -299,13 +310,14 @@ contract Voting {
             distributionDeadlineReach(proposalId, claimCount),
             "Claim Period hasn't reached deadline yet!"
         );
+
+        require(voterFound, "You are not a valid voter for this proposal");
+
         //require voter to vote approve
         require(
             voterState.votingOption[voterIndex] == VoteOptionType.Approve,
             "Voter must vote approve on the proposal"
         );
-
-        require(voterFound, "You are not a valid voter for this proposal");
 
         require(
             voterState.claimStatus[voterIndex] == false,
@@ -335,7 +347,9 @@ contract Voting {
         emit claimIncentiveEvent(receiver, amount);
     }
 
-    function transferRejectionCash(uint256 proposalId) internal {
+    function transferRejectionCash(
+        uint256 proposalId
+    ) internal {
         VotingState storage voterState = votingState[proposalId];
 
         uint256 allVotersLength = votingState[proposalId].voters.length;
@@ -356,7 +370,9 @@ contract Voting {
         );
     }
 
-    function voteDeadlineReach(uint256 proposalId) public view returns (bool) {
+    function voteDeadlineReach(
+        uint256 proposalId
+    ) public view returns (bool) {
         uint256 deadlinePeriodLeft = proposalVotingPeriod(proposalId);
         // If there is no time left, the deadline has been reached
         if (deadlinePeriodLeft == 0) {
