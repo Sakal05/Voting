@@ -152,18 +152,21 @@ contract Voting {
     }
 
     //function to create and give rigth to voter
-    function delegate(
-        address to
-    ) external {
+    function delegate(address to) external {
         require(msg.sender != address(0), "Address must exist");
         require(to != address(0), "Address must exist");
         Voter storage voter = voters[msg.sender];
         uint256 delegatorAddress = token.balanceOf(msg.sender);
-        if (voter.voteRight == 0){
-            require(delegatorAddress >= 100, "Address must have at least 100 tokens");
+        if (voter.voteRight == 0) {
+            require(
+                delegatorAddress >= 100,
+                "Address must have at least 100 tokens"
+            );
         } else {
-            require(delegatorAddress >= (100*voter.voteRight), "Address must have at least 100 tokens");
-
+            require(
+                delegatorAddress >= (100 * voter.voteRight),
+                "Address must have at least 100 tokens"
+            );
         }
         voters[to].voter = to;
         voters[to].voteRight += 1;
@@ -212,10 +215,10 @@ contract Voting {
         voting.voters.push(msg.sender);
         voting.voteBalances.push(_tokenAmount);
         voting.votingOption.push(voteOption);
-        voting.claimCounter.push(0);
+        voting.claimCounter.push(1);
         voting.claimStatus.push(false);
         voting.claimTimeStamp.push(block.timestamp);
-    
+
         //update proposal voting status
         if (voteOption == VoteOptionType.Approve) {
             prop.approveCount++;
@@ -246,11 +249,9 @@ contract Voting {
         }
     }
 
-    function declareWinningProposal(
-        uint256 proposalId
-    ) public {
+    function declareWinningProposal(uint256 proposalId) public {
         //ensure that proposal owner put some collectural into this contract
-        
+
         require(
             voteDeadlineReach(proposalId),
             "Proposal hasn't reached the deadline"
@@ -283,9 +284,7 @@ contract Voting {
         );
     }
 
-    function claimVotingIncentive(
-        uint256 proposalId
-    ) public {
+    function claimVotingIncentive(uint256 proposalId) public {
         require(msg.sender != address(0), "Address must be valid");
 
         bool voterFound;
@@ -308,7 +307,7 @@ contract Voting {
         uint256 claimCount = voterState.claimCounter[voterIndex];
         require(
             distributionDeadlineReach(proposalId, claimCount),
-            "Claim Period hasn't reached deadline yet!"
+            "Claim Period hasn't reached yet!"
         );
 
         require(voterFound, "You are not a valid voter for this proposal");
@@ -347,9 +346,7 @@ contract Voting {
         emit claimIncentiveEvent(receiver, amount);
     }
 
-    function transferRejectionCash(
-        uint256 proposalId
-    ) internal {
+    function transferRejectionCash(uint256 proposalId) internal {
         VotingState storage voterState = votingState[proposalId];
 
         uint256 allVotersLength = votingState[proposalId].voters.length;
@@ -370,9 +367,7 @@ contract Voting {
         );
     }
 
-    function voteDeadlineReach(
-        uint256 proposalId
-    ) public view returns (bool) {
+    function voteDeadlineReach(uint256 proposalId) public view returns (bool) {
         uint256 deadlinePeriodLeft = proposalVotingPeriod(proposalId);
         // If there is no time left, the deadline has been reached
         if (deadlinePeriodLeft == 0) {
@@ -403,24 +398,12 @@ contract Voting {
         require(prop.winningStatus == true, "Proposal has been rejected");
         uint256 claimDeadline;
 
-        if (claimCount == 0) {
-            //for first time claiming the incentive
-            claimDeadline = prop.timestamp + distributePeriod;
-            if (block.timestamp >= claimDeadline + 5 days) {
-                //5 days after proposal is delared winning status
-                return 0;
-            } else {
-                return claimDeadline + (5 days) - block.timestamp;
-            }
-        } else {
-            uint cc = claimCount += 1;
-            claimDeadline = prop.timestamp + (distributePeriod * cc);
+        claimDeadline = prop.timestamp + (distributePeriod * claimCount);
 
-            if (block.timestamp >= claimDeadline + 5 days) {
-                return 0;
-            } else {
-                return claimDeadline + 5 days - block.timestamp;
-            }
+        if (block.timestamp >= claimDeadline + 5 days) {
+            return 0;
+        } else {
+            return claimDeadline + 5 days - block.timestamp;
         }
     }
 
