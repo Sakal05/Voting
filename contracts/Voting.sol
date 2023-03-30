@@ -489,17 +489,6 @@ contract Voting {
         return votingState[proposalId].claimStatus;
     }
 
-    // function getClaimStatusByMonth(
-    //     uint256 proposalId
-    // ) public view returns (bool[] memory) {
-    //    bool[] memory claimStatus = new bool[](12);
-    //    for(uint256 i=0; i<12; i++){
-    //         claimStatus[i] = voterToClaimStatusMonthly[msg.sender][proposalId][i];
-    //    }
-    //    return claimStatus;
-        
-    // }
-
     function addProposal(address _voter, uint _proposalId) public {
         voterProposals[_voter].push(_proposalId);
     }

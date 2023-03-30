@@ -16,7 +16,7 @@ describe("Contract", function () {
   let DECIMAL = BigInt(decimal);
 
   // const DECIMAL = 10**18n;
-  console.log("Decimal", DECIMAL);
+  
 
   before(async function () {
     const TokenContract = await ethers.getContractFactory("Flexy");
@@ -236,16 +236,6 @@ describe("Contract", function () {
           // const balance = await tokenContract.balanceOf(addresses[1].address);
           // console.log("Balance: ", balance);
         });
-
-        // afterEach(async function(){
-        //   const claimStatusByMonth = await contract.connect(addresses[1]).getClaimStatusByMonth(1);
-        //   console.log("claimStatusByMonth: ", claimStatusByMonth);
-        // });
-
-        // after(async function(){
-        //   const claimStatusByMonth = await contract.connect(addresses[1]).getClaimStatusByMonth(1);
-        //   console.log("Final Claim Status: ", claimStatusByMonth);
-        // });
 
         //first claim after proposal is being declared
         it("Should claim first incentive after 1 month started from proposal declare win", async function () {
