@@ -293,7 +293,11 @@ describe("Voting Contract", function () {
 
         await contract.delegate(addresses[i].address);
         await contract.delegate(addresses[i].address);
+
+        
       }
+
+    
       //second proposal voting
       await contract.connect(addresses[0]).vote(1, 0, 100);
       await contract.connect(addresses[1]).vote(1, 0, 200);
@@ -306,6 +310,11 @@ describe("Voting Contract", function () {
       await contract.connect(addresses[2]).vote(0, 1, 100);
       await contract.connect(addresses[3]).vote(0, 1, 100);
       await contract.connect(addresses[4]).vote(0, 1, 100);
+    });
+
+    afterEach(async function(){
+      const claimStatusByMonth = await contract.connect(addresses[1]).getClaimStatusByMonth(1);
+      console.log("claimStatusByMonth: ", claimStatusByMonth);
     });
 
     it("Should claim first incentive after 30 days", async function () {
@@ -353,14 +362,14 @@ describe("Voting Contract", function () {
     });
 
     it("Should NOT ALLOW to claim second incentive as Deadline Has Not Reached", async function () {
-      await time.increase(86400 * 60);
+      await time.increase(86400 * 50);  //kvas 10 ngai tt ban krub 2 months, so it supposed to error
       await contract.declareWinningProposal(1);
 
       await contract.connect(addresses[1]).claimVotingIncentive(1);
 
       await expect(
         contract.connect(addresses[1]).claimVotingIncentive(1)
-      ).to.revertedWith("Claim Period hasn't reached deadline yet!");
+      ).to.revertedWith("Claim Period hasn't reached yet!");
     });
 
     it("Should NOT provide incentive as Proposal has been rejected", async function () {

@@ -11,6 +11,12 @@ describe("Contract", function () {
   let ad1, ad2, ad3, ad4, ad5, ad6, ad7;
   let addresses;
   let voting;
+  /* global BigInt */
+  let decimal = 10 ** 18;
+  let DECIMAL = BigInt(decimal);
+
+  // const DECIMAL = 10**18n;
+  console.log("Decimal", DECIMAL);
 
   before(async function () {
     const TokenContract = await ethers.getContractFactory("Flexy");
@@ -53,8 +59,10 @@ describe("Contract", function () {
       );
 
     for (let i = 0; i < addresses.length; i++) {
-      await tokenContract.transfer(addresses[i].address, 200);
-      await tokenContract.connect(addresses[i]).approve(contract.address, 200);
+      await tokenContract.transfer(addresses[i].address, BigInt(200) * DECIMAL);
+      await tokenContract
+        .connect(addresses[i])
+        .approve(contract.address, BigInt(200) * DECIMAL);
       await contract.connect(addresses[i]).delegate(addresses[i].address);
       await contract.connect(addresses[i]).delegate(addresses[i].address);
     }
@@ -80,17 +88,20 @@ describe("Contract", function () {
 
     before("Voting on 2 proposals", async function () {
       //first proposal voting
-      voteApprove = await contract.connect(addresses[0]).vote(0, 0, 100);
-      await contract.connect(addresses[1]).vote(0, 0, 100);
-      await contract.connect(addresses[2]).vote(0, 1, 100);
-      await contract.connect(addresses[3]).vote(0, 1, 100);
-      await contract.connect(addresses[4]).vote(0, 1, 100);
+      const voteAmount = BigInt(100) * DECIMAL;
+
+      voteApprove = await contract.connect(addresses[0]).vote(0, 0, voteAmount);
+      await contract.connect(addresses[1]).vote(0, 0, voteAmount);
+      await contract.connect(addresses[2]).vote(0, 1, voteAmount);
+      await contract.connect(addresses[3]).vote(0, 1, voteAmount);
+      await contract.connect(addresses[4]).vote(0, 1, voteAmount);
+
       //second proposal voting
-      await contract.connect(addresses[0]).vote(1, 0, 100);
-      await contract.connect(addresses[1]).vote(1, 0, 100);
-      await contract.connect(addresses[2]).vote(1, 0, 100);
-      await contract.connect(addresses[3]).vote(1, 0, 100);
-      voteReject = await contract.connect(addresses[4]).vote(1, 1, 100);
+      await contract.connect(addresses[0]).vote(1, 0, voteAmount);
+      await contract.connect(addresses[1]).vote(1, 0, voteAmount);
+      await contract.connect(addresses[2]).vote(1, 0, voteAmount);
+      await contract.connect(addresses[3]).vote(1, 0, voteAmount);
+      voteReject = await contract.connect(addresses[4]).vote(1, 1, voteAmount);
     });
 
     it("Should show total vote on proposal", async function () {
@@ -117,7 +128,7 @@ describe("Contract", function () {
 
     it("Should increase the proposal balance", async function () {
       const proposal = await contract.proposal(1);
-      expect(proposal.balance).to.equal(400);
+      expect(proposal.balance).to.equal(BigInt(400) * DECIMAL);
     });
 
     it("Should decrease the vote right", async function () {
@@ -128,16 +139,38 @@ describe("Contract", function () {
       }
     });
 
-    it("Should shows all voters for voted proposal", async function () {
-      const voters = await contract.getVotersByProposalId(0);
-      expect(voters.length).to.equal(5);
+    it("Should shows all voters by proposal ID", async function () {
+      let allVoters = [];
+      // //loop by the length of total votes of each proposal as one voter can only vote for one proposal
+      // const proposal = await contract.proposal(1);
+      // const totalVote = proposal.totalVote;
+      // console.log(totalVote);
+
+      let voter = await contract.getVotersByProposalId(1);
+      allVoters = voter;
+
+      expect(allVoters.length).to.equal(5);
     });
 
     it("Should shows all voted balances of voted proposal", async function () {
-      const votersBalance = await contract.getVoteBalanceByProposalId(0);
-      expect(votersBalance[0]).to.equal(100);
-      expect(votersBalance[1]).to.equal(100);
-      expect(votersBalance[2]).to.equal(100);
+      const votersBalance1 = await contract.getVoteBalance(
+        addresses[0].address,
+        0
+      );
+      const votersBalance2 = await contract.getVoteBalance(
+        addresses[0].address,
+        0
+      );
+      const votersBalance3 = await contract.getVoteBalance(
+        addresses[0].address,
+        0
+      );
+
+      const expectValue = BigInt(100) * DECIMAL;
+
+      expect(votersBalance1).to.equal(expectValue);
+      expect(votersBalance2).to.equal(expectValue);
+      expect(votersBalance3).to.equal(expectValue);
     });
 
     describe("Declare winning proposal", function () {
@@ -179,32 +212,135 @@ describe("Contract", function () {
           .to.emit(contract, "WinningProposalEvent")
           .withArgs(0, false, "Proposal settled successfully")
           .to.emit(contract, "TransferTokenForProposalRejection")
-          .withArgs(0, [addresses[0].address, addresses[1].address], 200);
+          .withArgs(0, addresses[0].address, BigInt(100) * DECIMAL)
+          .to.emit(contract, "TransferTokenForProposalRejection")
+          .withArgs(0, addresses[1].address, BigInt(100) * DECIMAL);
       });
 
       describe("Claiming Incentive", function () {
-        let claimFirstIncentive;
+        let claimIncentive;
         let secondProposal;
         let initialVoterBalance;
         before(async function () {
-          await time.increase(86400 * 35);
           initialVoterBalance = await tokenContract.balanceOf(
             addresses[1].address
           );
-          claimFirstIncentive = await contract
-            .connect(addresses[1])
-            .claimVotingIncentive(1);
         });
 
+        beforeEach(async function () {
+          initialVoterBalance = await tokenContract.balanceOf(
+            addresses[1].address
+          );
+
+          // //logger for balance before claim incentive proposal
+          // const balance = await tokenContract.balanceOf(addresses[1].address);
+          // console.log("Balance: ", balance);
+        });
+
+        // afterEach(async function(){
+        //   const claimStatusByMonth = await contract.connect(addresses[1]).getClaimStatusByMonth(1);
+        //   console.log("claimStatusByMonth: ", claimStatusByMonth);
+        // });
+
+        // after(async function(){
+        //   const claimStatusByMonth = await contract.connect(addresses[1]).getClaimStatusByMonth(1);
+        //   console.log("Final Claim Status: ", claimStatusByMonth);
+        // });
+
+        //first claim after proposal is being declared
         it("Should claim first incentive after 1 month started from proposal declare win", async function () {
+          await time.increase(86400 * 30); //increase by 1 day from proposal declared
+          claimIncentive = await contract
+            .connect(addresses[1])
+            .claimVotingIncentive(1);
           secondProposal = await contract.proposal(1);
 
-          const firstProposalIncentive =
+          const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
-          const voteBalance = await contract.getVoteBalanceByProposalId(1);
-          const firstAddressVoteBalance = voteBalance[1];
+
+          const voteBalance = await contract.getVoteBalance(
+            addresses[1].address,
+            1
+          );
+
           const incentive =
-            (firstProposalIncentive * firstAddressVoteBalance) / 100;
+            (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
+            BigInt(100);
+          // //log out incentive value 
+          // console.log("Incentive: ", BigInt(incentive));
+          const voterBalanceAfter = await tokenContract.balanceOf(
+            addresses[1].address
+          );
+          const expectedBalance =
+            parseInt(initialVoterBalance) + parseInt(incentive);
+
+          expect(voterBalanceAfter).to.equal(BigInt(expectedBalance));
+
+          await expect(claimIncentive)
+            .to.emit(contract, "claimIncentiveEvent")
+            .withArgs(addresses[1].address, incentive);
+
+          // const claimStatusByMonth = await contract.connect(addresses[1]).getClaimStatusByMonth(1);
+          // console.log("claimStatusByMonth: ", claimStatusByMonth);
+        });
+
+        //second claim, 2 months from proposal is being declared
+        it("Should claim second incentive after 2 months", async function () {
+          await time.increase(86400 * 30); //increase by 1 month
+
+          claimIncentive = await contract
+            .connect(addresses[1])
+            .claimVotingIncentive(1);
+
+          const secondProposalIncentive =
+            secondProposal.proposalInfo.incentivePercentagePerMonth;
+          const voteBalance = await contract.getVoteBalance(
+            addresses[1].address,
+            1
+          );
+
+          const incentive =
+            (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
+            BigInt(100);
+          // //log out incentive value 
+          // console.log("Incentive: ", BigInt(incentive));
+          const voterBalanceAfter = await tokenContract.balanceOf(
+            addresses[1].address
+          );
+          const expectedBalance =
+            parseInt(initialVoterBalance) + parseInt(incentive);
+
+          expect(voterBalanceAfter).to.equal(BigInt(expectedBalance));
+
+          await expect(claimIncentive)
+            .to.emit(contract, "claimIncentiveEvent")
+            .withArgs(addresses[1].address, incentive);
+        });
+
+        //third and forth claims, 4 months after proposal is being declared
+        it("Should claim incentive after 4 months", async function () {
+          await time.increase(86400 * 30 * 2); //increase by  2 months
+          const initialVoterBalance = await tokenContract.balanceOf(
+            addresses[1].address
+          );
+          claimIncentive = await contract
+            .connect(addresses[1])
+            .claimVotingIncentive(1);
+
+          const secondProposalIncentive =
+            secondProposal.proposalInfo.incentivePercentagePerMonth;
+          const voteBalance = await contract.getVoteBalance(
+            addresses[1].address,
+            1
+          );
+
+          let incentive =
+            (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
+            BigInt(100);
+          //2 months period, so multiply incentive by 2
+          incentive *= BigInt(2);
+          // //log out incentive value 
+          // console.log("Incentive: ", BigInt(incentive));
 
           const voterBalanceAfter = await tokenContract.balanceOf(
             addresses[1].address
@@ -212,44 +348,85 @@ describe("Contract", function () {
           const expectedBalance =
             parseInt(initialVoterBalance) + parseInt(incentive);
 
-          expect(voterBalanceAfter).to.equal(expectedBalance);
+          expect(voterBalanceAfter).to.equal(BigInt(expectedBalance));
 
-          await expect(claimFirstIncentive)
+          await expect(claimIncentive)
             .to.emit(contract, "claimIncentiveEvent")
             .withArgs(addresses[1].address, incentive);
         });
 
-        it("Should claim second incentive after 2 months", async function () {
+        //second claim, 2 months from proposal is being declared
+        it("Should claim fifth incentive after 5 months", async function () {
           await time.increase(86400 * 30);
           const initialVoterBalance = await tokenContract.balanceOf(
             addresses[1].address
           );
-          claimFirstIncentive = await contract
+          claimIncentive = await contract
             .connect(addresses[1])
             .claimVotingIncentive(1);
 
-          const firstProposalIncentive =
+          const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
-          const voteBalance = await contract.getVoteBalanceByProposalId(1);
-          const firstAddressVoteBalance = voteBalance[1];
-          const incentive =
-            (firstProposalIncentive * firstAddressVoteBalance) / 100;
+          const voteBalance = await contract.getVoteBalance(
+            addresses[1].address,
+            1
+          );
 
+          const incentive =
+            (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
+            BigInt(100);
+            // //log out incentive value 
+          // console.log("Incentive: ", BigInt(incentive));
           const voterBalanceAfter = await tokenContract.balanceOf(
             addresses[1].address
           );
           const expectedBalance =
             parseInt(initialVoterBalance) + parseInt(incentive);
-          expect(voterBalanceAfter).to.equal(expectedBalance);
 
-          await expect(claimFirstIncentive)
+          expect(voterBalanceAfter).to.equal(BigInt(expectedBalance));
+
+          await expect(claimIncentive)
             .to.emit(contract, "claimIncentiveEvent")
             .withArgs(addresses[1].address, incentive);
         });
 
-        
+        //second claim, 2 months from proposal is being declared
+        it("Should claim sixth incentive after 12 months", async function () {
+          await time.increase(86400 * 30 * 7);
+          const initialVoterBalance = await tokenContract.balanceOf(
+            addresses[1].address
+          );
+          claimIncentive = await contract
+            .connect(addresses[1])
+            .claimVotingIncentive(1);
 
+          const secondProposalIncentive =
+            secondProposal.proposalInfo.incentivePercentagePerMonth;
+          const voteBalance = await contract.getVoteBalance(
+            addresses[1].address,
+            1
+          );
 
+          let incentive =
+            (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
+            BigInt(100);
+          //2 months period, so multiply incentive by 2
+          incentive *= BigInt(7);
+          
+          // //log out incentive value 
+          // console.log("Incentive: ", BigInt(incentive));
+          const voterBalanceAfter = await tokenContract.balanceOf(
+            addresses[1].address
+          );
+          const expectedBalance =
+            parseInt(initialVoterBalance) + parseInt(incentive);
+
+          expect(voterBalanceAfter).to.equal(BigInt(expectedBalance));
+
+          await expect(claimIncentive)
+            .to.emit(contract, "claimIncentiveEvent")
+            .withArgs(addresses[1].address, incentive);
+        });
       });
     });
   });
