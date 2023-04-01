@@ -8,10 +8,11 @@ import "hardhat/console.sol";
 contract Voting {
     // Define a token variable of type IERC20 to represent the token contract
     Flexy private token;
-
+    uint256 public token_decimal;
     constructor(address _tokenAddress) {
         // Assign the token variable to an instance of the IERC20 contract at the specified address
         token = Flexy(_tokenAddress);
+        token_decimal = 10**token.decimals();
     }
 
     uint256 proposalCounter;
@@ -19,7 +20,6 @@ contract Voting {
     uint256 public proposalDeadlinePeriod = 5 days; //5 days period
     uint256 public distributePeriod = 30 days;
     uint256 public distributionPeriod = 375 days;
-    uint256 public DECIMAL = 10**18;
  
     struct Proposal {
         uint256 id;
@@ -54,10 +54,8 @@ contract Voting {
         
         address[] voters;
         uint256[] voteBalances;
-        VoteOptionType[] votingOption;
         uint256[] claimCounter;
         bool[] claimStatus;
-        uint256[] lastClaimTimeStamp;
     }
 
     struct Voter {
@@ -129,6 +127,7 @@ contract Voting {
         string memory whitePaper,
         uint256 incentivePercentagePerMonth
     ) public {
+        incentivePercentagePerMonth /= 100; //incentive percentage is measured in basis point. 100 BPS = 1% = 0.01
         require(msg.sender != address(0), "Must be a valid address");
         require(
             token.balanceOf(msg.sender) >= 100,
@@ -197,14 +196,15 @@ contract Voting {
         VoteOptionType voteOption,
         uint256 _tokenAmount
     ) external {
+        _tokenAmount *= token_decimal;
         require(
             token.balanceOf(msg.sender) >= _tokenAmount,
             "Insufficient balance"
         );
-        // require(
-        //     token.allowance(msg.sender, address(this)) >= _tokenAmount,
-        //     "Token allowance not set"
-        // );
+        require(
+            token.allowance(msg.sender, address(this)) >= _tokenAmount,
+            "Token allowance not set"
+        );
 
         Voter storage voter = voters[msg.sender];
         require(voter.voteRight >= 1, "You have no right to vote!!");
@@ -321,12 +321,12 @@ contract Voting {
     }
 
     function hasVoted(address _voter, uint _proposalId) public view returns (bool) {
-    for (uint i = 0; i < voterProposals[_voter].length; i++) {
-        if (voterProposals[_voter][i] == _proposalId) {
-            return true;
+        for (uint i = 0; i < voterProposals[_voter].length; i++) {
+            if (voterProposals[_voter][i] == _proposalId) {
+                return true;
+            }
         }
-    }
-    return false;
+        return false;
     }
 
     function claimVotingIncentive(uint256 proposalId) public {
@@ -337,6 +337,8 @@ contract Voting {
         require(!claimPeriodReached(proposalId), "Claim period reached");
 
         require(hasVoted(msg.sender, proposalId), "You have not voted on this proposal");
+
+        require(getVoterOptionByVoter(msg.sender, proposalId) == VoteOptionType.Approve, " Voter must vote approve");
 
         uint256 transferredAmount = calculateIncentive(msg.sender, proposalId);
         sendingIncentive(msg.sender, transferredAmount);
@@ -353,6 +355,7 @@ contract Voting {
         uint256 lastClaimTimeStamp = getClaimTimeStamp(_voter, _proposalId);
         uint256 incentivePeriodInDay;
         uint256 incentiveAmount;
+        require(block.timestamp < proposalTimeStamp + distributionPeriod, "Claim Period Reached");
         if(lastClaimTimeStamp == 0){
             incentivePeriodInDay = (block.timestamp - proposalTimeStamp)/86400;
             incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/3000;
@@ -397,6 +400,38 @@ contract Voting {
         }
 
         
+    }
+
+    function executeIncentive(uint256 proposalId) public {
+        require(msg.sender != address(0), "Address must be valid");
+        Proposal storage prop = proposal[proposalId];
+        require(prop.winningStatus == true, "Proposal has been rejected!");
+
+        require(claimPeriodReached(proposalId), "Claim period hasn't reached yet");
+
+        require(hasVoted(msg.sender, proposalId), "You have not voted on this proposal");
+
+        require(getVoterOptionByVoter(msg.sender, proposalId) == VoteOptionType.Approve, " Voter must vote approve");
+
+        uint256 incentive = prop.proposalInfo.incentivePercentagePerMonth;
+
+        uint lastClaimTimeStamp = getClaimTimeStamp(msg.sender, proposalId);
+
+        uint256 voteBalance = getVoteBalance(msg.sender, proposalId);
+        console.log("Vote balance:", voteBalance);
+        console.log("lastClaimTimeStamp", lastClaimTimeStamp);
+        uint256 oneYearPeriod = prop.timestamp + 366 days;
+        uint256 incentivePeriodInDay = (oneYearPeriod - lastClaimTimeStamp)/86400;
+
+        console.log("incentive period", incentivePeriodInDay);
+        
+        uint256 incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/3000;
+        console.log("Incentive amount",incentiveAmount);    
+
+        sendingIncentive(msg.sender, incentiveAmount);
+
+
+
     }
 
     function voteDeadlineReach(uint256 proposalId) public view returns (bool) {
@@ -469,12 +504,6 @@ contract Voting {
         uint256 proposalId
     ) public view returns (uint256[] memory) {
         return votingState[proposalId].voteBalances;
-    }
-
-    function getVotingOptionByProposalId(
-        uint256 proposalId
-    ) public view returns (VoteOptionType[] memory) {
-        return votingState[proposalId].votingOption;
     }
 
     function getClaimCounterByProposalId(
