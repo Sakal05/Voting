@@ -69,8 +69,8 @@ describe("Contract", function () {
   });
 
   it("Should show total number of proposal", async function () {
-    const proposal = await contract.getAllProposals();
-    expect(proposal.length).to.equal(3);
+    const proposal = await contract.getAllProposalsLength();
+    expect(proposal).to.equal(3);
   });
 
   it("Should show voting right is equal to 2", async function () {
@@ -86,7 +86,7 @@ describe("Contract", function () {
   describe("Vote on Proposal", function () {
     let voteApprove, voteReject;
 
-    before("Voting on 2 proposals", async function () {
+    before(async function() {
       //first proposal voting
       
       voteApprove = await contract.connect(addresses[0]).vote(0, 0, 100);
@@ -101,7 +101,12 @@ describe("Contract", function () {
       await contract.connect(addresses[2]).vote(1, 0, 100);
       await contract.connect(addresses[3]).vote(1, 0, 100);
       voteReject = await contract.connect(addresses[4]).vote(1, 1, 100);
-    });
+    }); 
+
+    // afterEach(async function(){
+    //   const proposal = await contract.proposals;
+    //   console.log(proposal);
+    // });
 
     it("Should show total vote on proposal", async function () {
       const proposal = await contract.proposal(0);
@@ -140,10 +145,6 @@ describe("Contract", function () {
 
     it("Should shows all voters by proposal ID", async function () {
       let allVoters = [];
-      // //loop by the length of total votes of each proposal as one voter can only vote for one proposal
-      // const proposal = await contract.proposal(1);
-      // const totalVote = proposal.totalVote;
-      // console.log(totalVote);
 
       let voter = await contract.getVotersByProposalId(1);
       allVoters = voter;
@@ -192,6 +193,7 @@ describe("Contract", function () {
         const firstProposal = await contract.proposal(0);
 
         expect(await firstProposal.winningStatus).to.equal(false);
+        expect(await firstProposal.pendingStatus).to.equal(false);
 
         await expect(declareWinFirstProposal)
           .to.emit(contract, "WinningProposalEvent")
@@ -201,6 +203,7 @@ describe("Contract", function () {
       it("Should declare Rejected for 2nd proposal", async function () {
         const secondProposal = await contract.proposal(1);
         expect(await secondProposal.winningStatus).to.equal(true);
+        expect(await secondProposal.pendingStatus).to.equal(false);
         await expect(declareWinSecondProposal)
           .to.emit(contract, "WinningProposalEvent")
           .withArgs(1, true, "Proposal settled successfully");
@@ -216,30 +219,44 @@ describe("Contract", function () {
           .withArgs(0, addresses[1].address, BigInt(100) * DECIMAL);
       });
 
+      it("Should get all Pending Proposals",async function(){
+       
+          let pendingProposals = new Array();
+          let allProposals = new Array();
+          const proposalLength = await contract.getAllProposalsLength();
+          for(let i = 0; i < proposalLength; i++){
+              let prop = await contract.getProposal(i);
+              allProposals.push(prop);
+          }
+          for(let i = 0; i < proposalLength; i++){
+            if(allProposals[i].pendingStatus == true){
+              pendingProposals.push(allProposals[i]);
+            }
+          }
+          expect(pendingProposals.length).to.equal(1);
+          expect(pendingProposals[0].proposalInfo.title).to.equal("Test Third Proposal");
+        
+      });
+
       describe("Claiming Incentive", function () {
         let claimIncentive;
         let secondProposal;
         let initialVoterBalance;
-        // before(async function () {
-        //   initialVoterBalance = await tokenContract.balanceOf(
-        //     addresses[1].address
-        //   );
-        // });
 
         beforeEach(async function () {
           initialVoterBalance = await tokenContract.balanceOf(
             addresses[1].address
           );
 
-          //logger for balance before claim incentive proposal
-          const balance = await tokenContract.balanceOf(addresses[1].address);
-          console.log("Initial Balance: ", balance);
+          // //logger for balance before claim incentive proposal
+          // const balance = await tokenContract.balanceOf(addresses[1].address);
+          // console.log("Initial Balance: ", balance);
         });
 
         afterEach(async function(){
-          //logger for balance after claim incentive proposal
-          const balance = await tokenContract.balanceOf(addresses[1].address);
-          console.log("After Balance: ", balance);
+          // //logger for balance after claim incentive proposal
+          // const balance = await tokenContract.balanceOf(addresses[1].address);
+          // console.log("After Balance: ", balance);
         });
 
         //first claim after proposal is being declared
@@ -453,6 +470,15 @@ describe("Contract", function () {
           await expect(claimIncentive)
             .to.emit(contract, "claimIncentiveEvent")
             .withArgs(addresses[1].address, incentive);
+        });
+
+        it("Should failed as voter already claim everything", async function () {
+          await time.increase(86400 * 30 * 8);         
+
+          await expect(contract
+            .connect(addresses[1])
+            .executeIncentive(1))
+            .to.revertedWith("You have claimed this proposal");
         });
 
       });

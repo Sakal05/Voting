@@ -25,7 +25,7 @@ contract Voting {
         uint256 id;
         ProposalInfo proposalInfo;
         uint256 timestamp;
-        bool proposalPendingStatus;
+        bool pendingStatus;
         bool winningStatus;
         uint totalVote;
         uint256 approveCount;
@@ -49,13 +49,8 @@ contract Voting {
     }
 
     struct VotingState {
-
         uint256 proposalId;
-        
         address[] voters;
-        uint256[] voteBalances;
-        uint256[] claimCounter;
-        bool[] claimStatus;
     }
 
     struct Voter {
@@ -76,9 +71,8 @@ contract Voting {
     //map from voter to proposal id to each claim time stamp
     mapping(address => mapping(uint256 => uint256)) public voterToClaimTimeStamp;
     
-    //================================================================ not optimized
-    //map from voter to proposal id to each month claim status
-    mapping(address => mapping(uint256 => mapping(uint256 => bool))) voterToClaimStatusMonthly;
+    //map from voter to proposl id to the claim status    
+    mapping(address => mapping(uint256 => bool)) public voterToClaimStatus;
 
     //map from proposal id to proposal struct
     mapping(uint => Proposal) public proposal;
@@ -150,7 +144,7 @@ contract Voting {
             id: proposalCounter++,
             proposalInfo: newProposalInfo,
             timestamp: block.timestamp,
-            proposalPendingStatus: true,
+            pendingStatus: true,
             winningStatus: false,
             totalVote: 0,
             approveCount: 0,
@@ -238,19 +232,7 @@ contract Voting {
         VotingState storage voting = votingState[proposalId];
         voting.proposalId = proposalId;
         voting.voters.push(msg.sender);
-        // voting.voteBalances.push(_tokenAmount);
-        // voting.votingOption.push(voteOption);
-        // voting.claimCounter.push(0);
-        voting.claimStatus.push(false);
-        // voting.lastClaimTimeStamp.push(0);
-        uint256 numMonths = 12; 
-        // bool[] memory newClaimStatusRow = new bool[](numMonths);
-        
-        bool claimState;
-        for (uint256 i = 0; i < numMonths; i++) {
-            claimState = voterToClaimStatusMonthly[msg.sender][proposalId][i];
-            // newClaimStatusRow[i] = false;
-        }
+      
         voterToClaimTimeStamp[msg.sender][proposalId] = 0;
 
         //update proposal voting status
@@ -298,13 +280,14 @@ contract Voting {
             "You must be the owner of the proposal"
         );
 
-        if (prop.totalVote == 0) {
-            return;
-        }
+        require(prop.pendingStatus == true, "Proposal has already been evaluate");
+
+        require(prop.totalVote != 0, "Proposal doesn't have any vote");
+
+        prop.pendingStatus = false;
 
         uint256 approveCount = prop.approveCount;
         uint256 totalVote = prop.totalVote;
-        //uint256 rejectRate = prop.totalVote%prop.rejectCount;
         uint256 winningRate = (approveCount * 100) / totalVote;
         if (winningRate >= 50) {
             prop.winningStatus = true;
@@ -331,7 +314,11 @@ contract Voting {
 
     function claimVotingIncentive(uint256 proposalId) public {
         require(msg.sender != address(0), "Address must be valid");
+
+        require(getVoterClaimStatus(msg.sender, proposalId) == false, "You have claimed this proposal");
+
         Proposal storage prop = proposal[proposalId];
+
         require(prop.winningStatus == true, "Proposal has been rejected!");
 
         require(!claimPeriodReached(proposalId), "Claim period reached");
@@ -341,9 +328,14 @@ contract Voting {
         require(getVoterOptionByVoter(msg.sender, proposalId) == VoteOptionType.Approve, " Voter must vote approve");
 
         uint256 transferredAmount = calculateIncentive(msg.sender, proposalId);
+        
         sendingIncentive(msg.sender, transferredAmount);
 
         addClaimTimeStamp(msg.sender, proposalId, block.timestamp);
+
+        if(block.timestamp >= prop.timestamp + 366 days){
+            addVoterClaimStatus(msg.sender, proposalId, true);
+        }
 
     }
 
@@ -413,25 +405,24 @@ contract Voting {
 
         require(getVoterOptionByVoter(msg.sender, proposalId) == VoteOptionType.Approve, " Voter must vote approve");
 
+        require(getVoterClaimStatus(msg.sender, proposalId) == false, "You have claimed this proposal");
+
         uint256 incentive = prop.proposalInfo.incentivePercentagePerMonth;
 
         uint lastClaimTimeStamp = getClaimTimeStamp(msg.sender, proposalId);
 
         uint256 voteBalance = getVoteBalance(msg.sender, proposalId);
-        console.log("Vote balance:", voteBalance);
-        console.log("lastClaimTimeStamp", lastClaimTimeStamp);
+
         uint256 oneYearPeriod = prop.timestamp + 366 days;
+
         uint256 incentivePeriodInDay = (oneYearPeriod - lastClaimTimeStamp)/86400;
 
-        console.log("incentive period", incentivePeriodInDay);
-        
         uint256 incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/3000;
-        console.log("Incentive amount",incentiveAmount);    
 
         sendingIncentive(msg.sender, incentiveAmount);
 
-
-
+        addVoterClaimStatus(msg.sender, proposalId, true);
+    
     }
 
     function voteDeadlineReach(uint256 proposalId) public view returns (bool) {
@@ -490,8 +481,12 @@ contract Voting {
         return proposal[proposalId];
     }
 
-    function getAllProposals() public view returns (Proposal[] memory) {
-        return proposals;
+    function getAllProposalsLength() public view returns (uint256) {
+        uint proposalLength = 0;
+        for(uint i = 0; i < proposals.length; i++){
+            proposalLength++;
+        }
+        return proposalLength;
     }
 
     function getVotersByProposalId(
@@ -500,23 +495,6 @@ contract Voting {
         return votingState[proposalId].voters;
     }
 
-    function getVoteBalanceByProposalId(
-        uint256 proposalId
-    ) public view returns (uint256[] memory) {
-        return votingState[proposalId].voteBalances;
-    }
-
-    function getClaimCounterByProposalId(
-        uint256 proposalId
-    ) public view returns (uint256[] memory) {
-        return votingState[proposalId].claimCounter;    
-    }
-
-    function getClaimStatusByProposalId(
-        uint256 proposalId
-    ) public view returns (bool[] memory) {
-        return votingState[proposalId].claimStatus;
-    }
 
     function addProposal(address _voter, uint _proposalId) public {
         voterProposals[_voter].push(_proposalId);
@@ -552,5 +530,13 @@ contract Voting {
 
     function addVoterOption(address _voter, uint _proposalId, VoteOptionType voteOptionType) public {
         voterToVoteOption[_voter][_proposalId] = voteOptionType;
+    }
+
+    function addVoterClaimStatus(address _voter, uint _proposalId, bool claimStatus) public {
+        voterToClaimStatus[_voter][_proposalId] = claimStatus;
+    }
+
+    function getVoterClaimStatus(address _voter, uint _proposalId) public view returns (bool){
+        return voterToClaimStatus[_voter][_proposalId];
     }
 }
