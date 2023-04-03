@@ -12,7 +12,7 @@ contract Voting {
     constructor(address _tokenAddress) {
         // Assign the token variable to an instance of the IERC20 contract at the specified address
         token = Flexy(_tokenAddress);
-        token_decimal = 10**token.decimals();
+        token_decimal = token.decimals();
     }
 
     uint256 proposalCounter;
@@ -123,11 +123,11 @@ contract Voting {
     ) public {
         require(msg.sender != address(0), "Must be a valid address");
         require(
-            token.balanceOf(msg.sender) >= 100,
+            token.balanceOf(msg.sender) >= 100 * 10**token_decimal,
             "Must hold 100 tokens or more to create Proposal"
         );
         require(
-            incentivePercentagePerMonth > 0,
+            incentivePercentagePerMonth >= 100,
             "Incentive must be greater than zero"
         );
 
@@ -189,7 +189,7 @@ contract Voting {
         VoteOptionType voteOption,
         uint256 _tokenAmount
     ) external {
-        _tokenAmount *= token_decimal;
+        _tokenAmount *= (10**token_decimal);
         require(
             token.balanceOf(msg.sender) >= _tokenAmount,
             "Insufficient balance"
@@ -349,15 +349,19 @@ contract Voting {
         require(block.timestamp < proposalTimeStamp + distributionPeriod, "Claim Period Reached");
         if(lastClaimTimeStamp == 0){
             incentivePeriodInDay = (block.timestamp - proposalTimeStamp)/86400;
+            //==== Formula incentive/30000 =====
+            //divide by 100 as incentive is measured in BPS, 100 BPS = 1%
+            //divide it by 100 to get the exact value from percentage 
+            //divide by 30 (days) to know interest rate per day
             incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/300000;
-            // console.log("Incentive amount:", (incentiveAmount));
             return incentiveAmount;
         } else {
             incentivePeriodInDay = (block.timestamp - lastClaimTimeStamp)/86400;
-            // (incentive/3000): incentive is being input in percentage per month, so we divide it by 100 to get the exact value and divide by 30 (days) to know interest rate per day
-            //divide by 100 as incentive is measured in BPS, 100 BPS = 1% = 0.01
+            //==== Formula incentive/30000 =====
+            //divide by 100 as incentive is measured in BPS, 100 BPS = 1%
+            //divide it by 100 to get the exact value from percentage 
+            //divide by 30 (days) to know interest rate per day
             incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/300000;
-            // console.log("Incentive amount:", (incentiveAmount));
             return incentiveAmount;
         }
 
@@ -417,9 +421,10 @@ contract Voting {
 
         uint256 incentivePeriodInDay = (oneYearPeriod - lastClaimTimeStamp)/86400;
 
-        //divide by 30 days
+        //==== Formula incentive/30000 =====
         //divide by 100 as incentive is measured in BPS, 100 BPS = 1%
-        //divide by 100 as 1% = 0.01
+        //divide it by 100 to get the exact value from percentage 
+        //divide by 30 (days) to know interest rate per day
         uint256 incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/300000;
 
         sendingIncentive(msg.sender, incentiveAmount);

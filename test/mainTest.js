@@ -11,12 +11,8 @@ describe("Contract", function () {
   let ad1, ad2, ad3, ad4, ad5, ad6, ad7;
   let addresses;
   let voting;
-  /* global BigInt */
   let decimal = 10 ** 18;
-  let DECIMAL = BigInt(decimal);
-
-  // const DECIMAL = 10**18n;
-  
+  let DECIMAL = BigInt(decimal);  
 
   before(async function () {
     const TokenContract = await ethers.getContractFactory("Flexy");
@@ -37,7 +33,7 @@ describe("Contract", function () {
         "Test Proposal",
         "This is a test proposal.",
         "https://example.com/test.pdf",
-        1000
+        1500
       );
 
     await contract
@@ -46,7 +42,7 @@ describe("Contract", function () {
         "Test Second Proposal",
         "This is a test proposal.",
         "https://example.com/test.pdf",
-        500
+        550
       );
 
     await contract
