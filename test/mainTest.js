@@ -277,7 +277,7 @@ describe("Contract", function () {
 
           const incentive =
             (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
-            BigInt(100);
+            BigInt(10000);
           // //log out incentive value 
           // console.log("Incentive: ", BigInt(incentive));
           const voterBalanceAfter = await tokenContract.balanceOf(
@@ -306,6 +306,7 @@ describe("Contract", function () {
 
           const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
+          
           const voteBalance = await contract.getVoteBalance(
             addresses[1].address,
             1
@@ -313,7 +314,7 @@ describe("Contract", function () {
 
           const incentive =
             (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
-            BigInt(100);
+            BigInt(10000);
           // //log out incentive value 
           // console.log("Incentive: ", BigInt(incentive));
           const voterBalanceAfter = await tokenContract.balanceOf(
@@ -348,7 +349,7 @@ describe("Contract", function () {
 
           let incentive =
             (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
-            BigInt(100);
+            BigInt(10000);
           //2 months period, so multiply incentive by 2
           incentive *= BigInt(2);
           // //log out incentive value 
@@ -383,7 +384,7 @@ describe("Contract", function () {
 
           const incentive =
             (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
-            BigInt(100);
+            BigInt(10000);
 
             // //log out incentive value 
           // console.log("Incentive: ", BigInt(incentive));
@@ -417,7 +418,7 @@ describe("Contract", function () {
 
           let incentive =
             (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
-            BigInt(100);
+            BigInt(10000);
           //2 months period, so multiply incentive by 2
           incentive *= BigInt(7);
           
@@ -453,7 +454,7 @@ describe("Contract", function () {
 
           let incentive =
             (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
-            BigInt(100);
+            BigInt(10000);
           //2 months period, so multiply incentive by 2
           incentive *= BigInt(7);
           
@@ -480,6 +481,7 @@ describe("Contract", function () {
             .executeIncentive(1))
             .to.revertedWith("You have claimed this proposal");
         });
+
 
       });
     });

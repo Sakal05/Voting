@@ -121,7 +121,6 @@ contract Voting {
         string memory whitePaper,
         uint256 incentivePercentagePerMonth
     ) public {
-        incentivePercentagePerMonth /= 100; //incentive percentage is measured in basis point. 100 BPS = 1% = 0.01
         require(msg.sender != address(0), "Must be a valid address");
         require(
             token.balanceOf(msg.sender) >= 100,
@@ -328,7 +327,7 @@ contract Voting {
         require(getVoterOptionByVoter(msg.sender, proposalId) == VoteOptionType.Approve, " Voter must vote approve");
 
         uint256 transferredAmount = calculateIncentive(msg.sender, proposalId);
-        
+
         sendingIncentive(msg.sender, transferredAmount);
 
         addClaimTimeStamp(msg.sender, proposalId, block.timestamp);
@@ -350,13 +349,14 @@ contract Voting {
         require(block.timestamp < proposalTimeStamp + distributionPeriod, "Claim Period Reached");
         if(lastClaimTimeStamp == 0){
             incentivePeriodInDay = (block.timestamp - proposalTimeStamp)/86400;
-            incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/3000;
+            incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/300000;
             // console.log("Incentive amount:", (incentiveAmount));
             return incentiveAmount;
         } else {
             incentivePeriodInDay = (block.timestamp - lastClaimTimeStamp)/86400;
             // (incentive/3000): incentive is being input in percentage per month, so we divide it by 100 to get the exact value and divide by 30 (days) to know interest rate per day
-            incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/3000;
+            //divide by 100 as incentive is measured in BPS, 100 BPS = 1% = 0.01
+            incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/300000;
             // console.log("Incentive amount:", (incentiveAmount));
             return incentiveAmount;
         }
@@ -417,7 +417,10 @@ contract Voting {
 
         uint256 incentivePeriodInDay = (oneYearPeriod - lastClaimTimeStamp)/86400;
 
-        uint256 incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/3000;
+        //divide by 30 days
+        //divide by 100 as incentive is measured in BPS, 100 BPS = 1%
+        //divide by 100 as 1% = 0.01
+        uint256 incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/300000;
 
         sendingIncentive(msg.sender, incentiveAmount);
 
