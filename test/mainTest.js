@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
-// const sinon = require("sinon"); //skip timeout
+//Integration Test
 
 describe("Contract", function () {
   let contract;

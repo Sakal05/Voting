@@ -9,18 +9,18 @@ contract Voting {
     // Define a token variable of type IERC20 to represent the token contract
     Flexy private token;
     uint256 public token_decimal;
+
     constructor(address _tokenAddress) {
         // Assign the token variable to an instance of the IERC20 contract at the specified address
         token = Flexy(_tokenAddress);
         token_decimal = token.decimals();
     }
 
-    uint256 proposalCounter;
-    uint256 votingCounter;
+    uint256 public proposalCounter;
     uint256 public proposalDeadlinePeriod = 5 days; //5 days period
     uint256 public distributePeriod = 30 days;
     uint256 public distributionPeriod = 375 days;
- 
+
     struct Proposal {
         uint256 id;
         ProposalInfo proposalInfo;
@@ -40,8 +40,6 @@ contract Voting {
         string whitePaper;
         uint256 incentivePercentagePerMonth;
     }
-
-    Proposal[] public proposals; //list of proposal
 
     enum VoteOptionType {
         Approve,
@@ -66,12 +64,14 @@ contract Voting {
     mapping(address => mapping(uint256 => uint256)) public voterToVoteBalance;
 
     //map from voter to proposal id to vote option
-    mapping(address => mapping(uint256 => VoteOptionType)) public voterToVoteOption;
+    mapping(address => mapping(uint256 => VoteOptionType))
+        public voterToVoteOption;
 
     //map from voter to proposal id to each claim time stamp
-    mapping(address => mapping(uint256 => uint256)) public voterToClaimTimeStamp;
-    
-    //map from voter to proposl id to the claim status    
+    mapping(address => mapping(uint256 => uint256))
+        public voterToClaimTimeStamp;
+
+    //map from voter to proposl id to the claim status
     mapping(address => mapping(uint256 => bool)) public voterToClaimStatus;
 
     //map from proposal id to proposal struct
@@ -123,7 +123,7 @@ contract Voting {
     ) public {
         require(msg.sender != address(0), "Must be a valid address");
         require(
-            token.balanceOf(msg.sender) >= 100 * 10**token_decimal,
+            token.balanceOf(msg.sender) >= 100 * 10 ** token_decimal,
             "Must hold 100 tokens or more to create Proposal"
         );
         require(
@@ -152,7 +152,6 @@ contract Voting {
         });
 
         proposal[proposalCounter - 1] = newProposal;
-        proposals.push(newProposal);
 
         emit ProposalEvent(
             newProposal.id,
@@ -164,7 +163,7 @@ contract Voting {
     }
 
     //function to create and give rigth to voter
-    function delegate(address to) external {
+    function delegate(address to) public {
         require(msg.sender != address(0), "Address must exist");
         require(to != address(0), "Address must exist");
         Voter storage voter = voters[msg.sender];
@@ -188,8 +187,8 @@ contract Voting {
         uint256 proposalId,
         VoteOptionType voteOption,
         uint256 _tokenAmount
-    ) external {
-        _tokenAmount *= (10**token_decimal);
+    ) public voteDeadlineReach(proposalId, false) {
+        _tokenAmount *= (10 ** token_decimal);
         require(
             token.balanceOf(msg.sender) >= _tokenAmount,
             "Insufficient balance"
@@ -204,12 +203,8 @@ contract Voting {
 
         Proposal storage prop = proposal[proposalId];
         require(
-            prop.proposalInfo.owner != address(0),
+            getProposal(proposalId).proposalInfo.owner != address(0),
             "Proposal does not Exist"
-        );
-        require(
-            !voteDeadlineReach(proposalId),
-            "Can't Vote, proposal had reached deadline"
         );
 
         require(
@@ -217,21 +212,19 @@ contract Voting {
             "You have already voted for this proposal"
         );
 
-        addProposal(msg.sender, proposalId);
 
         //set voter address to the proposal
         proposalToVoters[proposalId][msg.sender] = true;
         voter.voteRight--;
-        //increment total vote
         prop.totalVote++;
-
+        addProposal(msg.sender, proposalId);
         addVoteBalance(msg.sender, proposalId, _tokenAmount);
         addVoterOption(msg.sender, proposalId, voteOption);
 
         VotingState storage voting = votingState[proposalId];
         voting.proposalId = proposalId;
         voting.voters.push(msg.sender);
-      
+
         voterToClaimTimeStamp[msg.sender][proposalId] = 0;
 
         //update proposal voting status
@@ -264,45 +257,51 @@ contract Voting {
         }
     }
 
-    
-
-    function declareWinningProposal(uint256 proposalId) public {
+    function declareWinningProposal(
+        uint256 proposalId
+    ) public voteDeadlineReach(proposalId, true) {
         //ensure that proposal owner put some collectural into this contract
 
         require(
-            voteDeadlineReach(proposalId),
-            "Proposal hasn't reached the deadline"
-        );
-        Proposal storage prop = proposal[proposalId];
-        require(
-            msg.sender == prop.proposalInfo.owner,
+            msg.sender == getProposal(proposalId).proposalInfo.owner,
             "You must be the owner of the proposal"
         );
 
-        require(prop.pendingStatus == true, "Proposal has already been evaluate");
+        require(
+            getProposal(proposalId).pendingStatus == true,
+            "Proposal has already been evaluate"
+        );
 
-        require(prop.totalVote != 0, "Proposal doesn't have any vote");
+        require(
+            getProposal(proposalId).totalVote != 0,
+            "Proposal doesn't have any vote"
+        );
 
-        prop.pendingStatus = false;
-
-        uint256 approveCount = prop.approveCount;
-        uint256 totalVote = prop.totalVote;
+        uint256 approveCount = getProposal(proposalId).approveCount;
+        uint256 totalVote = getProposal(proposalId).totalVote;
         uint256 winningRate = (approveCount * 100) / totalVote;
         if (winningRate >= 50) {
+            Proposal storage prop = proposal[proposalId];
+            prop.pendingStatus = false;
             prop.winningStatus = true;
         } else {
+            Proposal storage prop = proposal[proposalId];
+            prop.pendingStatus = false;
             prop.winningStatus = false;
             //transfer all money back to voters
             transferRejectionCash(proposalId);
         }
         emit WinningProposalEvent(
             proposalId,
-            prop.winningStatus,
+            getProposal(proposalId).winningStatus,
             "Proposal settled successfully"
         );
     }
 
-    function hasVoted(address _voter, uint _proposalId) public view returns (bool) {
+    function hasVoted(
+        address _voter,
+        uint _proposalId
+    ) public view returns (bool) {
         for (uint i = 0; i < voterProposals[_voter].length; i++) {
             if (voterProposals[_voter][i] == _proposalId) {
                 return true;
@@ -311,62 +310,67 @@ contract Voting {
         return false;
     }
 
-    function claimVotingIncentive(uint256 proposalId) public {
-        require(msg.sender != address(0), "Address must be valid");
-
-        require(getVoterClaimStatus(msg.sender, proposalId) == false, "You have claimed this proposal");
-
-        Proposal storage prop = proposal[proposalId];
-
-        require(prop.winningStatus == true, "Proposal has been rejected!");
-
-        require(!claimPeriodReached(proposalId), "Claim period reached");
-
-        require(hasVoted(msg.sender, proposalId), "You have not voted on this proposal");
-
-        require(getVoterOptionByVoter(msg.sender, proposalId) == VoteOptionType.Approve, " Voter must vote approve");
-
+    function claimVotingIncentive(
+        uint256 proposalId
+    )
+        public
+        validateVoter(msg.sender, proposalId)
+        checkProposalStatus(proposalId)
+        claimPeriodReached(proposalId, false)
+    {
         uint256 transferredAmount = calculateIncentive(msg.sender, proposalId);
 
         sendingIncentive(msg.sender, transferredAmount);
 
         addClaimTimeStamp(msg.sender, proposalId, block.timestamp);
 
-        if(block.timestamp >= prop.timestamp + 366 days){
+        if (block.timestamp >= getProposal(proposalId).timestamp + 366 days) {
             addVoterClaimStatus(msg.sender, proposalId, true);
         }
-
     }
 
-    function calculateIncentive(address _voter, uint256 _proposalId) public view returns (uint256){
-        Proposal storage prop = proposal[_proposalId];
-        uint256 incentive = prop.proposalInfo.incentivePercentagePerMonth;
-        uint256 voteBalance = getVoteBalance(msg.sender,_proposalId);
-        uint256 proposalTimeStamp = prop.timestamp + 5 days;
+    function calculateIncentive(
+        address _voter,
+        uint256 _proposalId
+    ) public view returns (uint256) {
+        uint256 incentive = getProposal(_proposalId)
+            .proposalInfo
+            .incentivePercentagePerMonth;
+        uint256 voteBalance = getVoteBalance(msg.sender, _proposalId);
+        uint256 proposalTimeStamp = getProposal(_proposalId).timestamp + 5 days;
         uint256 lastClaimTimeStamp = getClaimTimeStamp(_voter, _proposalId);
         uint256 incentivePeriodInDay;
         uint256 incentiveAmount;
-        require(block.timestamp < proposalTimeStamp + distributionPeriod, "Claim Period Reached");
-        if(lastClaimTimeStamp == 0){
-            incentivePeriodInDay = (block.timestamp - proposalTimeStamp)/86400;
+        require(
+            block.timestamp < proposalTimeStamp + distributionPeriod,
+            "Claim Period Reached"
+        );
+        if (lastClaimTimeStamp == 0) {
+            incentivePeriodInDay =
+                (block.timestamp - proposalTimeStamp) /
+                86400;
             //==== Formula incentive/30000 =====
             //divide by 100 as incentive is measured in BPS, 100 BPS = 1%
-            //divide it by 100 to get the exact value from percentage 
+            //divide it by 100 to get the exact value from percentage
             //divide by 30 (days) to know interest rate per day
-            incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/300000;
+            incentiveAmount =
+                (incentivePeriodInDay * incentive * (voteBalance)) /
+                300000;
             return incentiveAmount;
         } else {
-            incentivePeriodInDay = (block.timestamp - lastClaimTimeStamp)/86400;
+            incentivePeriodInDay =
+                (block.timestamp - lastClaimTimeStamp) /
+                86400;
             //==== Formula incentive/30000 =====
             //divide by 100 as incentive is measured in BPS, 100 BPS = 1%
-            //divide it by 100 to get the exact value from percentage 
+            //divide it by 100 to get the exact value from percentage
             //divide by 30 (days) to know interest rate per day
-            incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/300000;
+            incentiveAmount =
+                (incentivePeriodInDay * incentive * (voteBalance)) /
+                300000;
             return incentiveAmount;
         }
-
     }
-
 
     function sendingIncentive(
         address receiver,
@@ -378,15 +382,17 @@ contract Voting {
 
     function transferRejectionCash(uint256 proposalId) internal {
         address[] memory allVoters = getVotersByProposalId(proposalId);
-        
         for (uint i = 0; i < allVoters.length; i++) {
             // if (voterState.votingOption[i] == VoteOptionType.Approve) {
-                if (getVoterOptionByVoter(allVoters[i], proposalId) == VoteOptionType.Approve) {
-                uint256 balanceTransferred = getVoteBalance(allVoters[i], proposalId);
-                token.transfer(
+            if (
+                getVoterOptionByVoter(allVoters[i], proposalId) ==
+                VoteOptionType.Approve
+            ) {
+                uint256 balanceTransferred = getVoteBalance(
                     allVoters[i],
-                    balanceTransferred
+                    proposalId
                 );
+                token.transfer(allVoters[i], balanceTransferred);
                 emit TransferTokenForProposalRejection(
                     proposalId,
                     allVoters[i],
@@ -394,60 +400,85 @@ contract Voting {
                 );
             }
         }
-
-        
     }
 
-    function executeIncentive(uint256 proposalId) public {
+    modifier validateVoter(address voter, uint256 proposalId) {
+        require(
+            hasVoted(msg.sender, proposalId),
+            "You have not voted on this proposal"
+        );
+
+        require(
+            getVoterOptionByVoter(msg.sender, proposalId) ==
+                VoteOptionType.Approve,
+            " Voter must vote approve"
+        );
+        require(
+            getVoterClaimStatus(msg.sender, proposalId) == false,
+            "You have claimed this proposal"
+        );
+        _;
+    }
+
+    function executeIncentive(
+        uint256 proposalId
+    )
+        public
+        validateVoter(msg.sender, proposalId)
+        checkProposalStatus(proposalId)
+        claimPeriodReached(proposalId, true)
+    {
         require(msg.sender != address(0), "Address must be valid");
-        Proposal storage prop = proposal[proposalId];
-        require(prop.winningStatus == true, "Proposal has been rejected!");
 
-        require(claimPeriodReached(proposalId), "Claim period hasn't reached yet");
-
-        require(hasVoted(msg.sender, proposalId), "You have not voted on this proposal");
-
-        require(getVoterOptionByVoter(msg.sender, proposalId) == VoteOptionType.Approve, " Voter must vote approve");
-
-        require(getVoterClaimStatus(msg.sender, proposalId) == false, "You have claimed this proposal");
-
-        uint256 incentive = prop.proposalInfo.incentivePercentagePerMonth;
+        uint256 incentive = getProposal(proposalId)
+            .proposalInfo
+            .incentivePercentagePerMonth;
 
         uint lastClaimTimeStamp = getClaimTimeStamp(msg.sender, proposalId);
 
         uint256 voteBalance = getVoteBalance(msg.sender, proposalId);
 
-        uint256 oneYearPeriod = prop.timestamp + 366 days;
+        uint256 oneYearPeriod = getProposal(proposalId).timestamp + 366 days;
 
-        uint256 incentivePeriodInDay = (oneYearPeriod - lastClaimTimeStamp)/86400;
+        uint256 incentivePeriodInDay = (oneYearPeriod - lastClaimTimeStamp) /
+            86400;
 
         //==== Formula incentive/30000 =====
         //divide by 100 as incentive is measured in BPS, 100 BPS = 1%
-        //divide it by 100 to get the exact value from percentage 
+        //divide it by 100 to get the exact value from percentage
         //divide by 30 (days) to know interest rate per day
-        uint256 incentiveAmount = (incentivePeriodInDay * incentive * (voteBalance))/300000;
+        uint256 incentiveAmount = (incentivePeriodInDay *
+            incentive *
+            (voteBalance)) / 300000;
 
         sendingIncentive(msg.sender, incentiveAmount);
 
         addVoterClaimStatus(msg.sender, proposalId, true);
-    
     }
 
-    function voteDeadlineReach(uint256 proposalId) public view returns (bool) {
+    modifier voteDeadlineReach(uint256 proposalId, bool flag) {
         uint256 deadlinePeriodLeft = proposalVotingPeriod(proposalId);
         // If there is no time left, the deadline has been reached
-        if (deadlinePeriodLeft == 0) {
-            return true;
+        if (flag == true) {
+            require(
+                deadlinePeriodLeft == 0,
+                "Proposal hasn't reached the deadline"
+            );
         } else {
-            return false;
+            require(
+                deadlinePeriodLeft != 0,
+                "Can't Vote, proposal had reached deadline"
+            );
         }
+        _;
     }
 
     function proposalVotingPeriod(
         uint256 proposalId
     ) public view returns (uint256) {
-        Proposal storage prop = proposal[proposalId];
-        uint256 proposalTimeOut = prop.timestamp + proposalDeadlinePeriod;
+        // Proposal memory prop = proposal[proposalId];
+        uint256 proposalTimeOut = proposal[proposalId].timestamp +
+            proposalDeadlinePeriod;
         // Calculate the time left until the deadline
         if (block.timestamp >= proposalTimeOut) {
             return 0;
@@ -458,25 +489,40 @@ contract Voting {
 
     function distrubutionDeadlinePeriod(
         uint256 proposalId
-    ) public view returns (uint256) {
-        Proposal storage prop = proposal[proposalId];
-        require(prop.winningStatus == true, "Proposal has been rejected");
-        uint256 claimPeriod = prop.timestamp + (distributionPeriod) + 5 days;
-        
-        if (block.timestamp >= claimPeriod ) {
+    ) public view checkProposalStatus(proposalId) returns (uint256) {
+        // require(prop.winningStatus == true, "Proposal has been rejected");
+        uint256 claimPeriod = getProposal(proposalId).timestamp +
+            (distributionPeriod) +
+            5 days;
+
+        if (block.timestamp >= claimPeriod) {
             return 0;
         } else {
             return claimPeriod - block.timestamp;
         }
     }
 
-    function claimPeriodReached(uint256 proposalId) public view returns (bool){
-        uint256 timeLeft = distrubutionDeadlinePeriod(proposalId);
-        if(timeLeft == 0){
-            return true;
+    modifier claimPeriodReached(uint256 proposalId, bool flag) {
+        if (flag == true) {
+            require(
+                distrubutionDeadlinePeriod(proposalId) == 0,
+                "Claim period reached"
+            );
         } else {
-            return false;
+            require(
+                distrubutionDeadlinePeriod(proposalId) != 0,
+                "Claim period hasn't reached yet"
+            );
         }
+        _;
+    }
+
+    modifier checkProposalStatus(uint256 proposalId) {
+        require(
+            getProposal(proposalId).winningStatus == true,
+            "Proposal has been rejected!"
+        );
+        _;
     }
 
     function getVotedProposals() public view returns (uint256[] memory) {
@@ -485,16 +531,12 @@ contract Voting {
 
     function getProposal(
         uint256 proposalId
-    ) external view returns (Proposal memory) {
+    ) public view returns (Proposal memory) {
         return proposal[proposalId];
     }
 
     function getAllProposalsLength() public view returns (uint256) {
-        uint proposalLength = 0;
-        for(uint i = 0; i < proposals.length; i++){
-            proposalLength++;
-        }
-        return proposalLength;
+        return proposalCounter;
     }
 
     function getVotersByProposalId(
@@ -503,48 +545,79 @@ contract Voting {
         return votingState[proposalId].voters;
     }
 
-
-    function addProposal(address _voter, uint _proposalId) public {
+    function addProposal(address _voter, uint _proposalId) internal {
         voterProposals[_voter].push(_proposalId);
     }
 
-    function getProposals(address _voter) public view returns (uint[] memory) {
+    function getProposalsByVoter(
+        address _voter
+    ) public view returns (uint[] memory) {
         return voterProposals[_voter];
     }
 
-    function addVoteBalance(address _voter, uint _proposalId, uint256 _voteBalance) public {
+    function addVoteBalance(
+        address _voter,
+        uint _proposalId,
+        uint256 _voteBalance
+    ) internal {
         voterToVoteBalance[_voter][_proposalId] = _voteBalance;
     }
 
-    function getVoteBalance(address _voter, uint _proposalId) public view returns (uint256){
+    function getVoteBalance(
+        address _voter,
+        uint _proposalId
+    ) public view returns (uint256) {
         return voterToVoteBalance[_voter][_proposalId];
     }
 
-    function addClaimTimeStamp(address _voter, uint _proposalId, uint256 claimTimeStamp) public {
+    function addClaimTimeStamp(
+        address _voter,
+        uint _proposalId,
+        uint256 claimTimeStamp
+    ) internal {
         voterToClaimTimeStamp[_voter][_proposalId] = claimTimeStamp;
     }
 
-    function getClaimTimeStamp(address _voter, uint _proposalId) public view returns (uint256){
+    function getClaimTimeStamp(
+        address _voter,
+        uint _proposalId
+    ) public view returns (uint256) {
         return voterToClaimTimeStamp[_voter][_proposalId];
     }
 
-    function getProposalIdByVoter(address _voter) public view returns(uint[] memory) {
+    function getProposalIdByVoter(
+        address _voter
+    ) public view returns (uint[] memory) {
         return voterProposals[_voter];
     }
 
-    function getVoterOptionByVoter(address _voter, uint _proposalId) public view returns(VoteOptionType) {
+    function getVoterOptionByVoter(
+        address _voter,
+        uint _proposalId
+    ) internal view returns (VoteOptionType) {
         return voterToVoteOption[_voter][_proposalId];
     }
 
-    function addVoterOption(address _voter, uint _proposalId, VoteOptionType voteOptionType) public {
+    function addVoterOption(
+        address _voter,
+        uint _proposalId,
+        VoteOptionType voteOptionType
+    ) internal {
         voterToVoteOption[_voter][_proposalId] = voteOptionType;
     }
 
-    function addVoterClaimStatus(address _voter, uint _proposalId, bool claimStatus) public {
+    function addVoterClaimStatus(
+        address _voter,
+        uint _proposalId,
+        bool claimStatus
+    ) internal {
         voterToClaimStatus[_voter][_proposalId] = claimStatus;
     }
 
-    function getVoterClaimStatus(address _voter, uint _proposalId) public view returns (bool){
+    function getVoterClaimStatus(
+        address _voter,
+        uint _proposalId
+    ) internal view returns (bool) {
         return voterToClaimStatus[_voter][_proposalId];
     }
 }
