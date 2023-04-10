@@ -115,13 +115,70 @@ contract Voting {
 
     event claimIncentiveEvent(address receiver, uint256 tokenAmount);
 
+    modifier validateVoter(address voter, uint256 proposalId) {
+        require(
+            hasVoted(msg.sender, proposalId),
+            "You have not voted on this proposal"
+        );
+
+        require(
+            getVoterOptionByVoter(msg.sender, proposalId) ==
+                VoteOptionType.Approve,
+            " Voter must vote approve"
+        );
+        require(
+            getVoterClaimStatus(msg.sender, proposalId) == false,
+            "You have claimed this proposal"
+        );
+        _;
+    }
+
+    modifier voteDeadlineReach(uint256 proposalId, bool flag) {
+        uint256 deadlinePeriodLeft = proposalVotingPeriod(proposalId);
+        // If there is no time left, the deadline has been reached
+        if (flag == true) {
+            require(
+                deadlinePeriodLeft == 0,
+                "Proposal hasn't reached the deadline"
+            );
+        } else {
+            require(
+                deadlinePeriodLeft != 0,
+                "Can't Vote, proposal had reached deadline"
+            );
+        }
+        _;
+    }
+    
+    modifier claimPeriodReached(uint256 proposalId, bool flag) {
+        if (flag == true) {
+            require(
+                distrubutionDeadlinePeriod(proposalId) == 0,
+                "Claim period reached"
+            );
+        } else {
+            require(
+                distrubutionDeadlinePeriod(proposalId) != 0,
+                "Claim period hasn't reached yet"
+            );
+        }
+        _;
+    }
+
+    modifier checkProposalStatus(uint256 proposalId) {
+        require(
+            getProposal(proposalId).winningStatus == true,
+            "Proposal has been rejected!"
+        );
+        _;
+    }
+
     function createProposal(
         string memory title,
         string memory description,
         string memory whitePaper,
         uint256 incentivePercentagePerMonth
     ) public {
-        require(msg.sender != address(0), "Must be a valid address");
         require(
             token.balanceOf(msg.sender) >= 100 * 10 ** token_decimal,
             "Must hold 100 tokens or more to create Proposal"
@@ -212,14 +269,17 @@ contract Voting {
             "You have already voted for this proposal"
         );
 
-
         //set voter address to the proposal
         proposalToVoters[proposalId][msg.sender] = true;
         voter.voteRight--;
         prop.totalVote++;
-        addProposal(msg.sender, proposalId);
-        addVoteBalance(msg.sender, proposalId, _tokenAmount);
-        addVoterOption(msg.sender, proposalId, voteOption);
+        // addProposal(msg.sender, proposalId);
+        voterProposals[msg.sender].push(proposalId);
+        // addVoteBalance(msg.sender, proposalId, _tokenAmount);
+        voterToVoteBalance[msg.sender][proposalId] = _tokenAmount;
+
+        // addVoterOption(msg.sender, proposalId, voteOption);
+        voterToVoteOption[msg.sender][proposalId] = voteOption;
 
         VotingState storage voting = votingState[proposalId];
         voting.proposalId = proposalId;
@@ -321,11 +381,12 @@ contract Voting {
         uint256 transferredAmount = calculateIncentive(msg.sender, proposalId);
 
         sendingIncentive(msg.sender, transferredAmount);
-
-        addClaimTimeStamp(msg.sender, proposalId, block.timestamp);
+        // addClaimTimeStamp(msg.sender, proposalId, block.timestamp);
+        voterToClaimTimeStamp[msg.sender][proposalId] = block.timestamp;
 
         if (block.timestamp >= getProposal(proposalId).timestamp + 366 days) {
-            addVoterClaimStatus(msg.sender, proposalId, true);
+            voterToClaimStatus[msg.sender][proposalId] = true;
+            // addVoterClaimStatus(msg.sender, proposalId, true);
         }
     }
 
@@ -402,24 +463,6 @@ contract Voting {
         }
     }
 
-    modifier validateVoter(address voter, uint256 proposalId) {
-        require(
-            hasVoted(msg.sender, proposalId),
-            "You have not voted on this proposal"
-        );
-
-        require(
-            getVoterOptionByVoter(msg.sender, proposalId) ==
-                VoteOptionType.Approve,
-            " Voter must vote approve"
-        );
-        require(
-            getVoterClaimStatus(msg.sender, proposalId) == false,
-            "You have claimed this proposal"
-        );
-        _;
-    }
-
     function executeIncentive(
         uint256 proposalId
     )
@@ -453,24 +496,8 @@ contract Voting {
 
         sendingIncentive(msg.sender, incentiveAmount);
 
-        addVoterClaimStatus(msg.sender, proposalId, true);
-    }
-
-    modifier voteDeadlineReach(uint256 proposalId, bool flag) {
-        uint256 deadlinePeriodLeft = proposalVotingPeriod(proposalId);
-        // If there is no time left, the deadline has been reached
-        if (flag == true) {
-            require(
-                deadlinePeriodLeft == 0,
-                "Proposal hasn't reached the deadline"
-            );
-        } else {
-            require(
-                deadlinePeriodLeft != 0,
-                "Can't Vote, proposal had reached deadline"
-            );
-        }
-        _;
+        // addVoterClaimStatus(msg.sender, proposalId, true);
+        voterToClaimStatus[msg.sender][proposalId] = true;
     }
 
     function proposalVotingPeriod(
@@ -502,29 +529,6 @@ contract Voting {
         }
     }
 
-    modifier claimPeriodReached(uint256 proposalId, bool flag) {
-        if (flag == true) {
-            require(
-                distrubutionDeadlinePeriod(proposalId) == 0,
-                "Claim period reached"
-            );
-        } else {
-            require(
-                distrubutionDeadlinePeriod(proposalId) != 0,
-                "Claim period hasn't reached yet"
-            );
-        }
-        _;
-    }
-
-    modifier checkProposalStatus(uint256 proposalId) {
-        require(
-            getProposal(proposalId).winningStatus == true,
-            "Proposal has been rejected!"
-        );
-        _;
-    }
-
     function getVotedProposals() public view returns (uint256[] memory) {
         return voters[msg.sender].proposal;
     }
@@ -545,22 +549,10 @@ contract Voting {
         return votingState[proposalId].voters;
     }
 
-    function addProposal(address _voter, uint _proposalId) internal {
-        voterProposals[_voter].push(_proposalId);
-    }
-
     function getProposalsByVoter(
         address _voter
     ) public view returns (uint[] memory) {
         return voterProposals[_voter];
-    }
-
-    function addVoteBalance(
-        address _voter,
-        uint _proposalId,
-        uint256 _voteBalance
-    ) internal {
-        voterToVoteBalance[_voter][_proposalId] = _voteBalance;
     }
 
     function getVoteBalance(
@@ -568,14 +560,6 @@ contract Voting {
         uint _proposalId
     ) public view returns (uint256) {
         return voterToVoteBalance[_voter][_proposalId];
-    }
-
-    function addClaimTimeStamp(
-        address _voter,
-        uint _proposalId,
-        uint256 claimTimeStamp
-    ) internal {
-        voterToClaimTimeStamp[_voter][_proposalId] = claimTimeStamp;
     }
 
     function getClaimTimeStamp(
@@ -598,26 +582,46 @@ contract Voting {
         return voterToVoteOption[_voter][_proposalId];
     }
 
-    function addVoterOption(
-        address _voter,
-        uint _proposalId,
-        VoteOptionType voteOptionType
-    ) internal {
-        voterToVoteOption[_voter][_proposalId] = voteOptionType;
-    }
-
-    function addVoterClaimStatus(
-        address _voter,
-        uint _proposalId,
-        bool claimStatus
-    ) internal {
-        voterToClaimStatus[_voter][_proposalId] = claimStatus;
-    }
-
     function getVoterClaimStatus(
         address _voter,
         uint _proposalId
     ) internal view returns (bool) {
         return voterToClaimStatus[_voter][_proposalId];
     }
+
+    // function addProposal(address _voter, uint _proposalId) internal {
+    //     voterProposals[_voter].push(_proposalId);
+    // }
+
+    // function addClaimTimeStamp(
+    //     address _voter,
+    //     uint _proposalId,
+    //     uint256 claimTimeStamp
+    // ) internal {
+    //     voterToClaimTimeStamp[_voter][_proposalId] = claimTimeStamp;
+    // }
+
+    // function addVoterOption(
+    //     address _voter,
+    //     uint _proposalId,
+    //     VoteOptionType voteOptionType
+    // ) internal {
+    //     voterToVoteOption[_voter][_proposalId] = voteOptionType;
+    // }
+
+    // function addVoterClaimStatus(
+    //     address _voter,
+    //     uint _proposalId,
+    //     bool claimStatus
+    // ) internal {
+    //     voterToClaimStatus[_voter][_proposalId] = claimStatus;
+    // }
+
+    // function addVoteBalance(
+    //     address _voter,
+    //     uint _proposalId,
+    //     uint256 _voteBalance
+    // ) internal {
+    //     voterToVoteBalance[_voter][_proposalId] = _voteBalance;
+    // }
 }

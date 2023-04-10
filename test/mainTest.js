@@ -12,7 +12,7 @@ describe("Contract", function () {
   let addresses;
   let voting;
   let decimal = 10 ** 18;
-  let DECIMAL = BigInt(decimal);  
+  let DECIMAL = BigInt(decimal);
 
   before(async function () {
     const TokenContract = await ethers.getContractFactory("Flexy");
@@ -82,9 +82,9 @@ describe("Contract", function () {
   describe("Vote on Proposal", function () {
     let voteApprove, voteReject;
 
-    before(async function() {
+    before(async function () {
       //first proposal voting
-      
+
       voteApprove = await contract.connect(addresses[0]).vote(0, 0, 100);
       await contract.connect(addresses[1]).vote(0, 0, 100);
       await contract.connect(addresses[2]).vote(0, 1, 100);
@@ -97,7 +97,7 @@ describe("Contract", function () {
       await contract.connect(addresses[2]).vote(1, 0, 100);
       await contract.connect(addresses[3]).vote(1, 0, 100);
       voteReject = await contract.connect(addresses[4]).vote(1, 1, 100);
-    }); 
+    });
 
     // afterEach(async function(){
     //   const proposal = await contract.proposals;
@@ -215,23 +215,23 @@ describe("Contract", function () {
           .withArgs(0, addresses[1].address, BigInt(100) * DECIMAL);
       });
 
-      it("Should get all Pending Proposals",async function(){
-       
-          let pendingProposals = new Array();
-          let allProposals = new Array();
-          const proposalLength = await contract.getAllProposalsLength();
-          for(let i = 0; i < proposalLength; i++){
-              let prop = await contract.getProposal(i);
-              allProposals.push(prop);
+      it("Should get all Pending Proposals", async function () {
+        let pendingProposals = new Array();
+        let allProposals = new Array();
+        const proposalLength = await contract.getAllProposalsLength();
+        for (let i = 0; i < proposalLength; i++) {
+          let prop = await contract.getProposal(i);
+          allProposals.push(prop);
+        }
+        for (let i = 0; i < proposalLength; i++) {
+          if (allProposals[i].pendingStatus == true) {
+            pendingProposals.push(allProposals[i]);
           }
-          for(let i = 0; i < proposalLength; i++){
-            if(allProposals[i].pendingStatus == true){
-              pendingProposals.push(allProposals[i]);
-            }
-          }
-          expect(pendingProposals.length).to.equal(1);
-          expect(pendingProposals[0].proposalInfo.title).to.equal("Test Third Proposal");
-        
+        }
+        expect(pendingProposals.length).to.equal(1);
+        expect(pendingProposals[0].proposalInfo.title).to.equal(
+          "Test Third Proposal"
+        );
       });
 
       describe("Claiming Incentive", function () {
@@ -249,7 +249,7 @@ describe("Contract", function () {
           // console.log("Initial Balance: ", balance);
         });
 
-        afterEach(async function(){
+        afterEach(async function () {
           // //logger for balance after claim incentive proposal
           // const balance = await tokenContract.balanceOf(addresses[1].address);
           // console.log("After Balance: ", balance);
@@ -274,7 +274,7 @@ describe("Contract", function () {
           const incentive =
             (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
             BigInt(10000);
-          // //log out incentive value 
+          // //log out incentive value
           // console.log("Incentive: ", BigInt(incentive));
           const voterBalanceAfter = await tokenContract.balanceOf(
             addresses[1].address
@@ -302,7 +302,7 @@ describe("Contract", function () {
 
           const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
-          
+
           const voteBalance = await contract.getVoteBalance(
             addresses[1].address,
             1
@@ -311,7 +311,7 @@ describe("Contract", function () {
           const incentive =
             (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
             BigInt(10000);
-          // //log out incentive value 
+          // //log out incentive value
           // console.log("Incentive: ", BigInt(incentive));
           const voterBalanceAfter = await tokenContract.balanceOf(
             addresses[1].address
@@ -348,7 +348,7 @@ describe("Contract", function () {
             BigInt(10000);
           //2 months period, so multiply incentive by 2
           incentive *= BigInt(2);
-          // //log out incentive value 
+          // //log out incentive value
           // console.log("Incentive: ", BigInt(incentive));
 
           const voterBalanceAfter = await tokenContract.balanceOf(
@@ -382,7 +382,7 @@ describe("Contract", function () {
             (BigInt(secondProposalIncentive) * BigInt(voteBalance)) /
             BigInt(10000);
 
-            // //log out incentive value 
+          // //log out incentive value
           // console.log("Incentive: ", BigInt(incentive));
           const voterBalanceAfter = await tokenContract.balanceOf(
             addresses[1].address
@@ -400,7 +400,7 @@ describe("Contract", function () {
         //latest claim
         it.skip("Should claim sixth incentive after 12 months", async function () {
           await time.increase(86400 * 30 * 7);
-        
+
           claimIncentive = await contract
             .connect(addresses[1])
             .claimVotingIncentive(1);
@@ -417,8 +417,8 @@ describe("Contract", function () {
             BigInt(10000);
           //2 months period, so multiply incentive by 2
           incentive *= BigInt(7);
-          
-          // //log out incentive value 
+
+          // //log out incentive value
           // console.log("Incentive: ", BigInt(incentive));
           const voterBalanceAfter = await tokenContract.balanceOf(
             addresses[1].address
@@ -436,7 +436,7 @@ describe("Contract", function () {
         //execute claim after claim period reached
         it("Should execute claim after claim period reach", async function () {
           await time.increase(86400 * 30 * 8);
-        
+
           claimIncentive = await contract
             .connect(addresses[1])
             .executeIncentive(1);
@@ -453,8 +453,8 @@ describe("Contract", function () {
             BigInt(10000);
           //2 months period, so multiply incentive by 2
           incentive *= BigInt(7);
-          
-          // //log out incentive value 
+
+          // //log out incentive value
           // console.log("Incentive: ", BigInt(incentive));
           const voterBalanceAfter = await tokenContract.balanceOf(
             addresses[1].address
@@ -470,15 +470,12 @@ describe("Contract", function () {
         });
 
         it("Should failed as voter already claim everything", async function () {
-          await time.increase(86400 * 30 * 8);         
+          await time.increase(86400 * 30 * 8);
 
-          await expect(contract
-            .connect(addresses[1])
-            .executeIncentive(1))
-            .to.revertedWith("You have claimed this proposal");
+          await expect(
+            contract.connect(addresses[1]).executeIncentive(1)
+          ).to.revertedWith("You have claimed this proposal");
         });
-
-
       });
     });
   });
