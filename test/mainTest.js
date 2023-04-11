@@ -149,15 +149,15 @@ describe("Contract", function () {
     });
 
     it("Should shows all voted balances of voted proposal", async function () {
-      const votersBalance1 = await contract.getVoteBalance(
+      const votersBalance1 = await contract.voterToVoteBalance(
         addresses[0].address,
         0
       );
-      const votersBalance2 = await contract.getVoteBalance(
+      const votersBalance2 = await contract.voterToVoteBalance(
         addresses[0].address,
         0
       );
-      const votersBalance3 = await contract.getVoteBalance(
+      const votersBalance3 = await contract.voterToVoteBalance(
         addresses[0].address,
         0
       );
@@ -266,7 +266,7 @@ describe("Contract", function () {
           const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
 
-          const voteBalance = await contract.getVoteBalance(
+          const voteBalance = await contract.voterToVoteBalance(
             addresses[1].address,
             1
           );
@@ -303,7 +303,7 @@ describe("Contract", function () {
           const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
 
-          const voteBalance = await contract.getVoteBalance(
+          const voteBalance = await contract.voterToVoteBalance(
             addresses[1].address,
             1
           );
@@ -338,7 +338,7 @@ describe("Contract", function () {
 
           const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
-          const voteBalance = await contract.getVoteBalance(
+          const voteBalance = await contract.voterToVoteBalance(
             addresses[1].address,
             1
           );
@@ -373,7 +373,7 @@ describe("Contract", function () {
 
           const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
-          const voteBalance = await contract.getVoteBalance(
+          const voteBalance = await contract.voterToVoteBalance(
             addresses[1].address,
             1
           );
@@ -407,7 +407,7 @@ describe("Contract", function () {
 
           const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
-          const voteBalance = await contract.getVoteBalance(
+          const voteBalance = await contract.voterToVoteBalance(
             addresses[1].address,
             1
           );
@@ -443,7 +443,7 @@ describe("Contract", function () {
 
           const secondProposalIncentive =
             secondProposal.proposalInfo.incentivePercentagePerMonth;
-          const voteBalance = await contract.getVoteBalance(
+          const voteBalance = await contract.voterToVoteBalance(
             addresses[1].address,
             1
           );
