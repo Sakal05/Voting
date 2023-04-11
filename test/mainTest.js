@@ -30,10 +30,10 @@ describe("Contract", function () {
     await contract
       .connect(owner)
       .createProposal(
-        "Test Proposal",
-        "This is a test proposal.",
-        "https://example.com/test.pdf",
-        1500
+          "Test Proposal",
+          "This is a test proposal.",
+          "https://example.com/test.pdf",
+          1500
       );
 
     await contract
