@@ -33,6 +33,7 @@ contract Voting {
         uint256 balance;
     }
 
+    //Plan to remove this metadata on-chain
     struct ProposalInfo {
         address owner;
         string title;
@@ -122,12 +123,13 @@ contract Voting {
         );
 
         require(
-            getVoterOptionByVoter(msg.sender, proposalId) ==
-                VoteOptionType.Approve,
+            voterToVoteOption[msg.sender][proposalId] == VoteOptionType.Approve,
+            // getVoterOptionByVoter(msg.sender, proposalId) == VoteOptionType.Approve,
             " Voter must vote approve"
         );
         require(
-            getVoterClaimStatus(msg.sender, proposalId) == false,
+            voterToClaimStatus[msg.sender][proposalId] == false,
+            // getVoterClaimStatus(msg.sender, proposalId) == false,
             "You have claimed this proposal"
         );
         _;
@@ -149,7 +151,7 @@ contract Voting {
         }
         _;
     }
-    
+
     modifier claimPeriodReached(uint256 proposalId, bool flag) {
         if (flag == true) {
             require(
@@ -393,13 +395,13 @@ contract Voting {
     function calculateIncentive(
         address _voter,
         uint256 _proposalId
-    ) public view returns (uint256) {
+    ) internal view returns (uint256) {
         uint256 incentive = getProposal(_proposalId)
             .proposalInfo
             .incentivePercentagePerMonth;
-        uint256 voteBalance = getVoteBalance(msg.sender, _proposalId);
+        uint256 voteBalance = voterToVoteBalance[_voter][_proposalId];
         uint256 proposalTimeStamp = getProposal(_proposalId).timestamp + 5 days;
-        uint256 lastClaimTimeStamp = getClaimTimeStamp(_voter, _proposalId);
+        uint256 lastClaimTimeStamp = voterToClaimTimeStamp[_voter][_proposalId];
         uint256 incentivePeriodInDay;
         uint256 incentiveAmount;
         require(
@@ -446,13 +448,14 @@ contract Voting {
         for (uint i = 0; i < allVoters.length; i++) {
             // if (voterState.votingOption[i] == VoteOptionType.Approve) {
             if (
-                getVoterOptionByVoter(allVoters[i], proposalId) ==
+                voterToVoteOption[allVoters[i]][proposalId] ==
                 VoteOptionType.Approve
+                // getVoterOptionByVoter(allVoters[i], proposalId) ==
+                // VoteOptionType.Approve
             ) {
-                uint256 balanceTransferred = getVoteBalance(
-                    allVoters[i],
+                uint256 balanceTransferred = voterToVoteBalance[allVoters[i]][
                     proposalId
-                );
+                ];
                 token.transfer(allVoters[i], balanceTransferred);
                 emit TransferTokenForProposalRejection(
                     proposalId,
@@ -477,9 +480,9 @@ contract Voting {
             .proposalInfo
             .incentivePercentagePerMonth;
 
-        uint lastClaimTimeStamp = getClaimTimeStamp(msg.sender, proposalId);
+        uint lastClaimTimeStamp = voterToClaimTimeStamp[msg.sender][proposalId];
 
-        uint256 voteBalance = getVoteBalance(msg.sender, proposalId);
+        uint256 voteBalance = voterToVoteBalance[msg.sender][proposalId];
 
         uint256 oneYearPeriod = getProposal(proposalId).timestamp + 366 days;
 
@@ -529,16 +532,13 @@ contract Voting {
         }
     }
 
-    function getVotedProposals() public view returns (uint256[] memory) {
-        return voters[msg.sender].proposal;
-    }
-
     function getProposal(
         uint256 proposalId
     ) public view returns (Proposal memory) {
         return proposal[proposalId];
     }
 
+    //for frontend looping purposes
     function getAllProposalsLength() public view returns (uint256) {
         return proposalCounter;
     }
@@ -549,45 +549,49 @@ contract Voting {
         return votingState[proposalId].voters;
     }
 
-    function getProposalsByVoter(
-        address _voter
-    ) public view returns (uint[] memory) {
-        return voterProposals[_voter];
-    }
+    // function getVotedProposals() public view returns (uint256[] memory) {
+    //     return voters[msg.sender].proposal;
+    // }
 
-    function getVoteBalance(
-        address _voter,
-        uint _proposalId
-    ) public view returns (uint256) {
-        return voterToVoteBalance[_voter][_proposalId];
-    }
+    // function getProposalsByVoter(
+    //     address _voter
+    // ) public view returns (uint[] memory) {
+    //     return voterProposals[_voter];
+    // }
 
-    function getClaimTimeStamp(
-        address _voter,
-        uint _proposalId
-    ) public view returns (uint256) {
-        return voterToClaimTimeStamp[_voter][_proposalId];
-    }
+    // function getVoteBalance(
+    //     address _voter,
+    //     uint _proposalId
+    // ) public view returns (uint256) {
+    //     return voterToVoteBalance[_voter][_proposalId];
+    // }
 
-    function getProposalIdByVoter(
-        address _voter
-    ) public view returns (uint[] memory) {
-        return voterProposals[_voter];
-    }
+    // function getClaimTimeStamp(
+    //     address _voter,
+    //     uint _proposalId
+    // ) public view returns (uint256) {
+    //     return voterToClaimTimeStamp[_voter][_proposalId];
+    // }
 
-    function getVoterOptionByVoter(
-        address _voter,
-        uint _proposalId
-    ) internal view returns (VoteOptionType) {
-        return voterToVoteOption[_voter][_proposalId];
-    }
+    // function getProposalIdByVoter(
+    //     address _voter
+    // ) public view returns (uint[] memory) {
+    //     return voterProposals[_voter];
+    // }
 
-    function getVoterClaimStatus(
-        address _voter,
-        uint _proposalId
-    ) internal view returns (bool) {
-        return voterToClaimStatus[_voter][_proposalId];
-    }
+    // function getVoterOptionByVoter(
+    //     address _voter,
+    //     uint _proposalId
+    // ) internal view returns (VoteOptionType) {
+    //     return voterToVoteOption[_voter][_proposalId];
+    // }
+
+    // function getVoterClaimStatus(
+    //     address _voter,
+    //     uint _proposalId
+    // ) internal view returns (bool) {
+    //     return voterToClaimStatus[_voter][_proposalId];
+    // }
 
     // function addProposal(address _voter, uint _proposalId) internal {
     //     voterProposals[_voter].push(_proposalId);
