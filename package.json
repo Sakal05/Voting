@@ -2,6 +2,7 @@
   "name": "hardhat-project",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.2",
+    "@nomiclabs/hardhat-etherscan": "^3.1.7",
     "chai": "^4.3.7",
     "hardhat": "^2.13.0"
   },
@@ -10,7 +11,11 @@
     "@openzeppelin/contracts": "^4.8.2",
     "@openzeppelin/test-helpers": "^0.5.16",
     "axios": "^0.27.2",
-    "sinon": "^15.0.2",
     "dotenv": "^8.6.0"
+  },
+  "scripts": {
+    "deploy": "npx hardhat run scripts/deploy.js --network mumbai",
+    "verify": "npx hardhat run scripts/verfiy.js --network mumbai",
+    "test": "npx hardhat test test/mainTest.js"
   }
 }

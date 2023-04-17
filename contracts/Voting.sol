@@ -3,7 +3,6 @@ pragma solidity ^0.8.4;
 
 // Import the IERC20 interface from an external Solidity file
 import "./FlexyToken.sol";
-import "hardhat/console.sol";
 
 contract Voting {
     // Define a token variable of type IERC20 to represent the token contract
@@ -118,6 +117,10 @@ contract Voting {
 
     modifier validateVoter(address voter, uint256 proposalId) {
         require(
+            getProposal(proposalId).proposalInfo.owner != address(0),
+            "Proposal does not Exist"
+        );
+        require(
             hasVoted(msg.sender, proposalId),
             "You have not voted on this proposal"
         );
@@ -125,7 +128,7 @@ contract Voting {
         require(
             voterToVoteOption[msg.sender][proposalId] == VoteOptionType.Approve,
             // getVoterOptionByVoter(msg.sender, proposalId) == VoteOptionType.Approve,
-            " Voter must vote approve"
+            "Voter must vote approve"
         );
         require(
             voterToClaimStatus[msg.sender][proposalId] == false,
@@ -136,6 +139,11 @@ contract Voting {
     }
 
     modifier voteDeadlineReach(uint256 proposalId, bool flag) {
+        require(
+            getProposal(proposalId).proposalInfo.owner != address(0),
+            "Proposal does not Exist"
+        );
+
         uint256 deadlinePeriodLeft = proposalVotingPeriod(proposalId);
         // If there is no time left, the deadline has been reached
         if (flag == true) {
@@ -181,14 +189,8 @@ contract Voting {
         string memory whitePaper,
         uint256 incentivePercentagePerMonth
     ) public {
-        require(
-            token.balanceOf(msg.sender) >= 100 * 10 ** token_decimal,
-            "Must hold 100 tokens or more to create Proposal"
-        );
-        require(
-            incentivePercentagePerMonth >= 100,
-            "Incentive must be greater than zero"
-        );
+        require(token.balanceOf(msg.sender) >= 100 * 10 ** token_decimal, "Must hold 100 tokens or more to create Proposal");
+        require(incentivePercentagePerMonth >= 100,"Incentive must be greater than zero");
 
         ProposalInfo memory newProposalInfo = ProposalInfo({
             owner: msg.sender,
@@ -261,10 +263,7 @@ contract Voting {
         require(voter.voteRight >= 1, "You have no right to vote!!");
 
         Proposal storage prop = proposal[proposalId];
-        require(
-            getProposal(proposalId).proposalInfo.owner != address(0),
-            "Proposal does not Exist"
-        );
+        
 
         require(
             !proposalToVoters[proposalId][msg.sender],
@@ -404,10 +403,7 @@ contract Voting {
         uint256 lastClaimTimeStamp = voterToClaimTimeStamp[_voter][_proposalId];
         uint256 incentivePeriodInDay;
         uint256 incentiveAmount;
-        require(
-            block.timestamp < proposalTimeStamp + distributionPeriod,
-            "Claim Period Reached"
-        );
+        require(block.timestamp < proposalTimeStamp + distributionPeriod,"Claim Period Reached");
         if (lastClaimTimeStamp == 0) {
             incentivePeriodInDay =
                 (block.timestamp - proposalTimeStamp) /
@@ -466,9 +462,7 @@ contract Voting {
         }
     }
 
-    function executeIncentive(
-        uint256 proposalId
-    )
+    function executeIncentive(uint256 proposalId)
         public
         validateVoter(msg.sender, proposalId)
         checkProposalStatus(proposalId)
@@ -503,9 +497,7 @@ contract Voting {
         voterToClaimStatus[msg.sender][proposalId] = true;
     }
 
-    function proposalVotingPeriod(
-        uint256 proposalId
-    ) public view returns (uint256) {
+    function proposalVotingPeriod(uint256 proposalId) public view returns (uint256) {
         // Proposal memory prop = proposal[proposalId];
         uint256 proposalTimeOut = proposal[proposalId].timestamp +
             proposalDeadlinePeriod;
@@ -517,9 +509,7 @@ contract Voting {
         }
     }
 
-    function distrubutionDeadlinePeriod(
-        uint256 proposalId
-    ) public view checkProposalStatus(proposalId) returns (uint256) {
+    function distrubutionDeadlinePeriod(uint256 proposalId) public view checkProposalStatus(proposalId) returns (uint256) {
         // require(prop.winningStatus == true, "Proposal has been rejected");
         uint256 claimPeriod = getProposal(proposalId).timestamp +
             (distributionPeriod) +
@@ -532,9 +522,7 @@ contract Voting {
         }
     }
 
-    function getProposal(
-        uint256 proposalId
-    ) public view returns (Proposal memory) {
+    function getProposal(uint256 proposalId) public view returns (Proposal memory) {
         return proposal[proposalId];
     }
 
@@ -543,9 +531,7 @@ contract Voting {
         return proposalCounter;
     }
 
-    function getVotersByProposalId(
-        uint256 proposalId
-    ) public view returns (address[] memory) {
+    function getVotersByProposalId(uint256 proposalId) public view returns (address[] memory) {
         return votingState[proposalId].voters;
     }
 
