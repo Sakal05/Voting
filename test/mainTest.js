@@ -331,7 +331,7 @@ describe("Contract", function () {
               // console.log("Initial Balance: ", balance);
             });
 
-            afterEach(async function () {
+            afterEach(async function () { 
               // //logger for balance after claim incentive proposal
               // const balance = await tokenContract.balanceOf(addresses[1].address);
               // console.log("After Balance: ", balance);
